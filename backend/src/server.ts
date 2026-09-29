@@ -10,7 +10,6 @@ import { connectDB } from './config/db.js';
 import { userFromToken } from './middleware/auth.js';
 import { jwtSecret } from './utils/authSecrets.js';
 import { seedAdminIfNone } from './controllers/authController.js';
-import { seedProjectsIfNone } from './controllers/projectController.js';
 import { seedClustersIfNone } from './controllers/clusterController.js';
 import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
@@ -113,7 +112,6 @@ const startServer = async () => {
   jwtSecret(); // fail fast (production) or warn (development) about the signing secret
   await connectDB();
   await seedAdminIfNone();
-  await seedProjectsIfNone();
   await seedClustersIfNone();
 
   server.listen(PORT, () => {

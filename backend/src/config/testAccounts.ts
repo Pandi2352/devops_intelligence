@@ -83,7 +83,7 @@ export const TEST_ACCOUNTS: TestAccount[] = [
     name: 'Heidi Developer',
     password: 'Heidi-Test-2026',
     role: 'developer',
-    purpose: 'Other team: argo-apps only, no access to kubeorbit-demo',
+    purpose: 'Other team: granted only argo-apps (a project that does not exist), so sees no projects at all',
     permissions: [g('argo-apps', 'all', 'Build and Deploy')],
   },
 ];
