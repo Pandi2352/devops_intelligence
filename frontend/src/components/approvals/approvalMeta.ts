@@ -23,6 +23,9 @@ export const ACTION_LABEL: Record<string, string> = {
   APPROVAL_REVIEW: 'Review',
   APPROVAL_CANCEL: 'Cancel request',
   SETTINGS: 'Settings',
+  CONNECTOR: 'Connector',
+  DNS_CHANGE: 'DNS change',
+  PUBLIC_PREVIEW: 'Public preview',
 };
 
 export const OUTCOME_META: Record<AuditOutcome, { label: string; chip: string }> = {

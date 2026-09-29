@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ArgoPage } from './pages/ArgoPage';
 import { GitPage } from './pages/GitPage';
 import { ConnectorsPage } from './pages/ConnectorsPage';
+import { PublicUrlsPage } from './pages/PublicUrlsPage';
 import { RbacPage } from './pages/RbacPage';
 import { CopilotPage } from './pages/CopilotPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
@@ -73,6 +74,7 @@ export function App() {
             <Route path="environments" element={<EnvironmentsPage />} />
             <Route path="logs" element={<LogsPage />} />
             <Route path="metrics" element={<MetricsPage />} />
+            <Route path="public-urls" element={<PublicUrlsPage />} />
             <Route path="applications" element={<Navigate to="/environments" replace />} />
             <Route path="argocd" element={<ArgoPage />} />
             <Route path="git" element={<GitPage />} />

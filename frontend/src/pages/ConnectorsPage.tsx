@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Activity, Server, ShieldAlert, Workflow } from 'lucide-react';
+import { Activity, Cloud, Server, ShieldAlert, Workflow } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
 import { ScrollableTabs, TabItem } from '../components/common/ScrollableTabs';
 import { ClusterConnectorTab } from '../components/connectors/ClusterConnectorTab';
@@ -8,6 +8,7 @@ import { GitLabConnectorTab } from '../components/connectors/GitLabConnectorTab'
 import { gitlabStatus } from '../components/connectors/gitlabStatus';
 import { ArgoConnectorTab } from '../components/connectors/ArgoConnectorTab';
 import { ObservabilityConnectorTab } from '../components/connectors/ObservabilityConnectorTab';
+import { DnsConnectorTab } from '../components/connectors/DnsConnectorTab';
 import { ObservabilityLogoTile } from '../components/connectors/ObservabilityLogos';
 import { ConnectorKind, ConnectorLogoTile, GitLabLogo } from '../components/connectors/ConnectorLogos';
 import { ConnectorCollection } from '../components/connectors/useConnectorTab';
@@ -15,12 +16,13 @@ import { clusterApi } from '../api/clusterApi';
 import { gitApi } from '../api/gitApi';
 import { argoApi } from '../api/argoApi';
 import { observabilityApi, ObservabilityConnector } from '../api/observabilityApi';
+import { dnsApi, DnsConnector, dnsStatus } from '../api/dnsApi';
 import { getApiErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { ArgoIntegration, Cluster, GitIntegration } from '../types';
 
 type TabId = ConnectorKind | 'observability';
-const TABS: TabId[] = ['clusters', 'gitlab', 'argocd', 'observability'];
+const TABS: TabId[] = ['clusters', 'gitlab', 'argocd', 'observability', 'dns'];
 
 // Loads one connector list and exposes it in the shape the tabs expect.
 function useCollection<T>(loader: () => Promise<T[]>, errorLabel: string): ConnectorCollection<T> {
@@ -51,6 +53,7 @@ const loadClusters = () => clusterApi.getAll();
 const loadGitLab = async () => (await gitApi.getAll()).filter((g) => g.provider === 'gitlab');
 const loadArgo = () => argoApi.getConnectors();
 const loadObservability = () => observabilityApi.connectors();
+const loadDns = () => dnsApi.connectors();
 
 interface SummaryCardProps {
   logo: React.ReactNode;
@@ -101,6 +104,7 @@ export const ConnectorsPage: React.FC = () => {
   const gitlab = useCollection<GitIntegration>(loadGitLab, 'GitLab connectors');
   const argo = useCollection<ArgoIntegration>(loadArgo, 'ArgoCD connectors');
   const observability = useCollection<ObservabilityConnector>(loadObservability, 'observability connectors');
+  const dns = useCollection<DnsConnector>(loadDns, 'DNS connectors');
 
   // Switching tabs drops the previous tab's search / filter / page params.
   const selectTab = (tab: TabId) => {
@@ -115,6 +119,7 @@ export const ConnectorsPage: React.FC = () => {
       total: observability.items.length,
       healthy: observability.items.filter((o) => o.isActive && o.status === 'Connected').length,
     },
+    dns: { total: dns.items.length, healthy: dns.items.filter((d) => dnsStatus(d) === 'Connected').length },
   };
 
   const countBadge = (n: number) => (
@@ -150,13 +155,22 @@ export const ConnectorsPage: React.FC = () => {
       activeTextColor: 'text-orange-700',
       activeBgColor: 'bg-orange-50/50',
     },
+    {
+      id: 'dns',
+      label: 'DNS',
+      icon: <Cloud size={15} aria-hidden className="text-orange-500" />,
+      badge: countBadge(counts.dns.total),
+      activeBorderColor: 'border-orange-500',
+      activeTextColor: 'text-orange-700',
+      activeBgColor: 'bg-orange-50/50',
+    },
   ];
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Connectors"
-        description="Credentials DevOps Intelligence uses to reach your Kubernetes clusters, GitLab, ArgoCD, Prometheus, Grafana and Loki. Secrets are encrypted at rest and never shown again after saving."
+        description="Credentials DevOps Intelligence uses to reach your Kubernetes clusters, GitLab, ArgoCD, Prometheus, Grafana, Loki and Cloudflare DNS. Secrets are encrypted at rest and never shown again after saving."
       />
 
       {!canManage && (
@@ -166,7 +180,7 @@ export const ConnectorsPage: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3">
         <SummaryCard logo={<ConnectorLogoTile kind="clusters" size="lg" />} label="Kubernetes clusters" {...counts.clusters} isLoading={clusters.isLoading && clusters.items.length === 0} isActive={activeTab === 'clusters'} onClick={() => selectTab('clusters')} />
         <SummaryCard logo={<ConnectorLogoTile kind="gitlab" size="lg" />} label="GitLab" {...counts.gitlab} isLoading={gitlab.isLoading && gitlab.items.length === 0} isActive={activeTab === 'gitlab'} onClick={() => selectTab('gitlab')} />
         <SummaryCard logo={<ConnectorLogoTile kind="argocd" size="lg" />} label="ArgoCD" {...counts.argocd} isLoading={argo.isLoading && argo.items.length === 0} isActive={activeTab === 'argocd'} onClick={() => selectTab('argocd')} />
@@ -178,6 +192,7 @@ export const ConnectorsPage: React.FC = () => {
           isActive={activeTab === 'observability'}
           onClick={() => selectTab('observability')}
         />
+        <SummaryCard logo={<ConnectorLogoTile kind="dns" size="lg" />} label="DNS · Cloudflare" {...counts.dns} isLoading={dns.isLoading && dns.items.length === 0} isActive={activeTab === 'dns'} onClick={() => selectTab('dns')} />
       </div>
 
       <ScrollableTabs<TabId> tabs={tabs} activeTab={activeTab} onChange={selectTab} />
@@ -187,6 +202,7 @@ export const ConnectorsPage: React.FC = () => {
         {activeTab === 'gitlab' && <GitLabConnectorTab collection={gitlab} canManage={canManage} />}
         {activeTab === 'argocd' && <ArgoConnectorTab collection={argo} canManage={canManage} />}
         {activeTab === 'observability' && <ObservabilityConnectorTab collection={observability} canManage={canManage} />}
+        {activeTab === 'dns' && <DnsConnectorTab collection={dns} canManage={canManage} />}
       </div>
     </div>
   );

@@ -14,6 +14,33 @@ export interface IK8sMapping {
   namespaces: string[];
 }
 
+/** Public hostname of an environment, served through Cloudflare. */
+export interface IEnvDns {
+  hostname: string;
+  connectorId: string;
+  zoneId: string;
+  zoneName: string;
+  /** record = A/CNAME to an address you give (or the Ingress address); tunnel = through a Cloudflare Tunnel. */
+  mode: 'record' | 'tunnel';
+  /** record mode: IP or hostname the record points at; empty = the environment's Ingress address. */
+  target: string;
+  /** tunnel mode: the tunnel that serves it. */
+  tunnelId: string;
+  /** tunnel mode: in-cluster service and port; empty = the environment's first Service. */
+  service: string;
+  port: number;
+  proxied: boolean;
+  updatedAt?: Date;
+  updatedBy?: string;
+}
+
+/** Temporary public URL from a Cloudflare quick tunnel (trycloudflare.com); needs no domain or token. */
+export interface IEnvPreview {
+  url: string;
+  startedAt?: Date;
+  startedBy?: string;
+}
+
 export interface IArgoAppMapping {
   appName: string;
   targetNamespace: string;
@@ -24,6 +51,8 @@ export interface IArgoAppMapping {
   branch?: string;
   /** Deploys need an approved request. null/undefined = default (prod and production do). */
   requiresApproval?: boolean | null;
+  dns?: IEnvDns | null;
+  preview?: IEnvPreview | null;
 }
 
 export interface IProject extends Document {
@@ -73,6 +102,30 @@ const ProjectSchema = new Schema<IProject>(
         environment: { type: String, default: '' },
         branch: { type: String, default: '' },
         requiresApproval: { type: Boolean, default: null },
+        dns: {
+          type: new Schema(
+            {
+              hostname: { type: String, required: true },
+              connectorId: { type: String, default: '' },
+              zoneId: { type: String, default: '' },
+              zoneName: { type: String, default: '' },
+              mode: { type: String, enum: ['record', 'tunnel'], default: 'record' },
+              target: { type: String, default: '' },
+              tunnelId: { type: String, default: '' },
+              service: { type: String, default: '' },
+              port: { type: Number, default: 0 },
+              proxied: { type: Boolean, default: true },
+              updatedAt: { type: Date },
+              updatedBy: { type: String, default: '' },
+            },
+            { _id: false }
+          ),
+          default: null,
+        },
+        preview: {
+          type: new Schema({ url: { type: String, default: '' }, startedAt: { type: Date }, startedBy: { type: String, default: '' } }, { _id: false }),
+          default: null,
+        },
         serverUrl: { type: String, default: 'https://argocd.kubeorbit.local' },
       },
     ],

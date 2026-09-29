@@ -120,6 +120,18 @@ export const RESOLVERS: Record<string, { action: ApprovalAction; resolve: Resolv
     action: 'REDEPLOY',
     resolve: byProjectEnv((req) => String(req.params.env), (_req, env) => `Redeploy the head of ${env}`),
   },
+  'dns.apply': {
+    action: 'DNS_CHANGE',
+    resolve: byProjectEnv((req) => String(req.params.env), (_req, env) => `Point the public hostname of ${env} at ${env} (Cloudflare DNS)`),
+  },
+  'dns.remove': {
+    action: 'DNS_CHANGE',
+    resolve: byProjectEnv((req) => String(req.params.env), (_req, env) => `Remove the public DNS record of ${env}`),
+  },
+  'preview.start': {
+    action: 'PUBLIC_PREVIEW',
+    resolve: byProjectEnv((req) => String(req.params.env), (_req, env) => `Open a temporary public preview URL for ${env}`),
+  },
   'argo.sync': { action: 'SYNC', resolve: byArgoApp((_req, env) => `Sync ${env} to what is in Git`) },
   'argo.rollback': { action: 'ROLLBACK', resolve: byArgoApp((req, env) => `ArgoCD rollback of ${env} to history #${req.body?.id}`) },
   'git.pipeline': {

@@ -524,6 +524,10 @@ export const getProjectEnvironments = async (req: AuthRequest, res: Response): P
       return {
         ...e,
         requiresApproval: requiresApproval(projectDoc, e.key),
+        publicUrl: (() => {
+          const a = projectDoc.argoApps.find((x) => (x.environment || x.branch || x.appName) === e.key);
+          return a?.dns?.hostname ? `https://${a.dns.hostname}` : a?.preview?.url || '';
+        })(),
         pendingApproval: req0 ? { id: String(req0._id), status: req0.status, summary: req0.summary, requestedBy: req0.requestedByName || req0.requestedBy, at: req0.createdAt } : null,
       };
     });

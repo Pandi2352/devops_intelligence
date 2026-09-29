@@ -10,7 +10,9 @@ export type ApprovalAction =
   | 'SYNC'
   | 'REDEPLOY'
   | 'MERGE'
-  | 'PIPELINE';
+  | 'PIPELINE'
+  | 'DNS_CHANGE'
+  | 'PUBLIC_PREVIEW';
 
 // PENDING → APPROVED → EXECUTING → EXECUTED | FAILED, or PENDING → REJECTED | CANCELLED.
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'CANCELLED';
@@ -48,7 +50,7 @@ const ApprovalRequestSchema = new Schema<IApprovalRequest>(
     environment: { type: String, default: '' },
     action: {
       type: String,
-      enum: ['RESTART_POD', 'SCALE_DEPLOYMENT', 'PROD_DEPLOY', 'ROLLBACK', 'PROMOTE', 'SYNC', 'REDEPLOY', 'MERGE', 'PIPELINE'],
+      enum: ['RESTART_POD', 'SCALE_DEPLOYMENT', 'PROD_DEPLOY', 'ROLLBACK', 'PROMOTE', 'SYNC', 'REDEPLOY', 'MERGE', 'PIPELINE', 'DNS_CHANGE', 'PUBLIC_PREVIEW'],
       required: true,
     },
     resource: { type: String, required: true },

@@ -412,6 +412,67 @@ ssh-keygen -t ed25519 -f gitops_deploy_key -N "" -C "<app> CI"
 > Why *Protected*: only protected branches (your environment branches) receive the key, so a feature
 > branch can never publish to an environment.
 
+### B6. DNS (Cloudflare)
+
+Optional. Connects the domains whose DNS Cloudflare manages, so environments can get real hostnames
+(for example `demo-api.example.com`).
+
+You need a **domain in your Cloudflare account** (a *zone*). A new Cloudflare account has none: add one
+under *Websites → Add a domain* (buy one through Cloudflare Registrar or move an existing domain's name
+servers). Without a zone, only **Preview URLs** (C10) work.
+
+1. Cloudflare dashboard → **My Profile → API Tokens → Create Token** → template **Edit zone DNS**
+   (or *Manage Account → Account API Tokens* for an account-owned `cfat_…` token).
+   - Permissions: `Zone → Zone → Read` and `Zone → DNS → Edit`.
+   - For tunnels also: `Account → Cloudflare Tunnel → Edit`.
+   - Zone Resources: only the domains DevOps Intelligence should manage.
+   - Optional: an expiry date and a client IP filter for this server.
+2. Copy the token (Cloudflare shows it once). Paste it only into the form below, never into chat, tickets or Git.
+3. **Connectors → DNS → Add Cloudflare**:
+
+| Field | Value |
+|---|---|
+| Name | e.g. `Cloudflare – example.com` |
+| API token | the token from step 1 (never the Global API Key, which is refused) |
+| Account ID | **required** for account-owned tokens (`cfat_…`) and for tunnels. Dashboard → any domain → *Overview*, right column |
+| Limit to zones | optional, comma separated; empty = every zone the token can see |
+
+**Test connection** checks, without changing anything, that the token is active, that it can see
+zones, and that it can read DNS records. "Token is active, but it sees no zones" means the account has
+no domain yet (or the token lacks `Zone → Zone → Read`). The row shows how many zones are visible and
+when the token expires (amber within 14 days).
+
+The **list icon** on the row opens the zones (status, record count, name servers). Click a zone to see
+its **DNS records**; DevOps admins can add, edit and delete A, AAAA, CNAME, TXT and MX records there.
+Records created by DevOps Intelligence carry the comment `DevOps Intelligence: <project>/<env>` and a
+*Managed* badge. A zone that is still *pending* needs your registrar pointed at the Cloudflare name
+servers shown.
+
+### B7. Cloudflare Tunnel (public hostnames without a public IP)
+
+Minikube has no public IP, so a plain DNS record cannot reach it from the internet. A **tunnel** fixes
+that: `cloudflared` runs inside the cluster and connects *outwards* to Cloudflare, and Cloudflare sends
+`https://<hostname>` through it to the environment's Service. No open ports, and HTTPS is included.
+
+**Connectors → DNS → Cloudflare Tunnels → Create tunnel**: pick the connector (it needs the Account
+ID), the cluster, a name (default `di-<cluster>`) and replicas. DevOps Intelligence then:
+
+1. creates the tunnel in Cloudflare,
+2. stores its connector token (encrypted) and creates the Secret `cloudflared-token`,
+3. deploys `cloudflared` to the namespace `cloudflared` of that cluster,
+4. keeps the tunnel's routes (`hostname → http://<service>.<namespace>.svc.cluster.local:<port>`) in
+   sync with the environments that use it (C10).
+
+The tunnel card shows the Cloudflare status (*healthy* once cloudflared is connected), connections,
+the cloudflared pods and the routes. **Redeploy** re-applies cloudflared with a fresh token and resyncs
+routes. **Delete** refuses while hostnames still use the tunnel (you can force it).
+
+Prefer GitOps? `devops-demo/platform/cloudflared.yaml` is the same Deployment; create the token Secret
+by hand as described in the file.
+
+Adding, editing and deleting DNS connectors and tunnels is recorded in the **Audit log** (*Connector*);
+record changes as *DNS change*.
+
 ---
 
 ## 6. Part C: your first project, end to end
@@ -527,7 +588,8 @@ Environments can require an approval for every deploy. **prod** / **production**
 switches any environment on or off in **Projects → project → Setup checklist → Deploys need approval**.
 
 In a gated environment these actions become a request instead of running:
-promote into it, Sync, roll back, redeploy, run its branch pipeline, and merge into its branch.
+promote into it, Sync, roll back, redeploy, run its branch pipeline, merge into its branch, apply or remove its
+public DNS record, and start a public preview URL (C10).
 
 | Step | Who | What happens |
 |---|---|---|
@@ -540,6 +602,56 @@ Pending requests can be cancelled by the requester or an admin. Reviewing twice 
 
 Every deploy action, gated or not, and every approval step lands in the **audit log** (Manager Approvals → Audit log, or
 the project's Audit log tab): time, who, what, where, outcome and message. Export it as CSV.
+
+### C10. Public URLs: domains and preview links
+
+**Project → Domains** shows, per environment, its public address and whether it works.
+
+**Preview URL (no domain needed).** *Start preview* runs a Cloudflare quick tunnel (`cloudflared
+--url`, a Deployment named `di-preview` in the environment's namespace) and shows a random
+`https://<words>.trycloudflare.com` link after 10–40 seconds. Anyone with the link can open the
+environment, so **stop it when done**: the link dies immediately. A new start gives a new link. It needs
+Build and Deploy on the environment; on gated environments (prod) starting one is an approval request.
+Stopping is never gated.
+
+**Public hostname (needs a zone, B6).**
+
+1. A project **Admin** presses **Set hostname**: zone + subdomain (suggested `<project>-<env>`, prod gets
+   the project name), and how it is served:
+
+| Mode | Record created | Use when |
+|---|---|---|
+| **Cloudflare Tunnel** | `CNAME <hostname> → <tunnel-id>.cfargotunnel.com` (proxied) | no public IP: minikube, a laptop, a private cluster (needs a tunnel, B7) |
+| **DNS record** | `A`/`AAAA` to an IP, or `CNAME` to a hostname you give; empty = the address of the Ingress serving that hostname | the cluster has a load balancer or public IP |
+
+   Advanced: which Service and port to expose (default: the environment's first Service, port `http`).
+   *Proxied* (orange cloud) sends traffic through Cloudflare: free HTTPS, caching and DDoS protection,
+   and it hides the origin IP.
+2. Someone with **Build and Deploy** presses **Apply DNS**. The record is created, or fixed when it
+   points elsewhere (extra A/AAAA/CNAME records for that name are removed). On gated environments this
+   is an approval request, like a deploy.
+3. The card shows the state:
+
+| State | Meaning | What to do |
+|---|---|---|
+| **Live** | Cloudflare has exactly the expected record | nothing |
+| **No record** | nothing in Cloudflare for the hostname | Apply DNS |
+| **Points elsewhere** | a different target or proxy setting | Fix (replaces it) |
+| **Needs a target** | record mode, no target and no Ingress address | set a target or use a tunnel |
+| **Error** | Cloudflare unreachable, token revoked, connector deleted | check Connectors → DNS |
+
+   plus an HTTPS reachability check (status code and time), expected vs actual records, and the tunnel
+   status. The environment cards (Overview, Environments page) link to the hostname or preview.
+
+**Remove record** deletes the hostname's address records (gated like Apply). **Clear hostname** only
+forgets the setting and drops the tunnel route; the DNS record stays in Cloudflare until you remove it.
+A hostname can belong to one environment only.
+
+**Observability → Public URLs** lists everything reachable from the internet across the projects you
+can see: each public hostname (state, answers, when and by whom it was set) and each running preview.
+Previews open for more than 24 hours are flagged red; **Stop** closes one right there (needs Build and
+Deploy on that environment). **Fix / Manage** jumps to the project's Domains tab. Check this page
+regularly: a forgotten preview keeps an environment open to anyone with the link.
 
 ---
 

@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, ChevronRight, GitCommitHorizontal, Lock, Rocket } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, GitCommitHorizontal, Globe, Lock, Rocket } from 'lucide-react';
 import { EnvOverview, EnvState } from '../../api/projectApi';
 import { ENV_STATE_META } from '../../utils/project';
-import { formatDateTime, formatRelativeTime } from '../../utils/format';
+import { formatDateTime, formatRelativeTime, hostFromUrl } from '../../utils/format';
 
 export const EnvStateChip: React.FC<{ state: EnvState; className?: string }> = ({ state, className = '' }) => {
   const m = ENV_STATE_META[state] || ENV_STATE_META.unknown;
@@ -71,6 +71,18 @@ export const EnvironmentTile: React.FC<{ env: EnvOverview; previous?: EnvOvervie
         <div>
           <div className="text-base font-bold font-mono text-slate-900">{env.name}</div>
           <div className="text-[11px] font-mono text-slate-500">{env.namespace}</div>
+          {(env.publicUrl || env.previewUrl) && (
+            <a
+              href={env.publicUrl || env.previewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-0.5 flex items-center gap-1 text-[11px] text-sky-700 hover:underline max-w-[220px]"
+              title={env.publicUrl ? `Open ${env.publicUrl}` : `Temporary preview: ${env.previewUrl}`}
+            >
+              <Globe size={11} className="shrink-0" aria-hidden />
+              <span className="truncate font-mono">{env.publicUrl ? hostFromUrl(env.publicUrl) : 'Preview'}</span>
+            </a>
+          )}
           {env.requiresApproval && (
             <span
               className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-900 text-[10px] font-semibold"

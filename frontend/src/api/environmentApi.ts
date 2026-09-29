@@ -37,6 +37,8 @@ export interface EnvironmentView {
   /** Deploys into this environment wait for an approved request. */
   requiresApproval?: boolean;
   pendingApproval?: PendingApproval | null;
+  /** Public hostname URL, or the running preview URL. */
+  publicUrl?: string;
 }
 
 export interface PendingApproval {

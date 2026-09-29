@@ -1,7 +1,7 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, Clock, ExternalLink, GitBranch, History, Info, RotateCcw, RotateCw, Undo2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, ExternalLink, GitBranch, Globe, History, Info, RotateCcw, RotateCw, Undo2, XCircle } from 'lucide-react';
 import { EnvironmentView } from '../../api/environmentApi';
-import { formatDateTime, formatRelativeTime } from '../../utils/format';
+import { formatDateTime, formatRelativeTime, hostFromUrl } from '../../utils/format';
 import { ApprovalRequiredBadge, PendingApprovalStrip } from './ApprovalNotice';
 
 const ACCENT: Record<string, { bar: string; label: string }> = {
@@ -73,6 +73,18 @@ export const EnvironmentCard: React.FC<EnvironmentCardProps> = ({ env, canManage
         <p className="mt-0.5 text-[11px] text-slate-500 truncate" title={`${env.cluster} / ${env.namespace}`}>
           <span className="font-mono text-slate-700">{env.namespace}</span> · {env.cluster} · {env.autoSync ? 'auto-sync' : 'manual sync'}
         </p>
+        {env.publicUrl && (
+          <a
+            href={env.publicUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-0.5 flex items-center gap-1 text-[11px] text-sky-700 hover:underline min-w-0"
+            title={`Open ${env.publicUrl}`}
+          >
+            <Globe size={11} className="shrink-0" aria-hidden />
+            <span className="truncate font-mono">{hostFromUrl(env.publicUrl)}</span>
+          </a>
+        )}
       </header>
 
       <dl className="px-4 py-1.5 flex-1">

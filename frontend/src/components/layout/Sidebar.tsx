@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
+  Globe,
   Workflow,
   ShieldCheck,
   Cable,
@@ -291,6 +292,21 @@ export const Sidebar: React.FC = () => {
               <div className="flex items-center gap-2">
                 <LineChart size={15} />
                 <span>Metrics</span>
+              </div>
+            </NavLink>
+            <NavLink
+              to="/public-urls"
+              className={({ isActive }) =>
+                `flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'bg-sky-50 text-sky-700 font-semibold border-l-2 border-sky-600'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`
+              }
+            >
+              <div className="flex items-center gap-2">
+                <Globe size={15} />
+                <span>Public URLs</span>
               </div>
             </NavLink>
           </div>

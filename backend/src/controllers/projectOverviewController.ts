@@ -31,6 +31,10 @@ export interface EnvOverview {
   history: { at: string; revision: string; by: string }[];
   requiresApproval?: boolean;
   approvalIsDefault?: boolean;
+  /** https://<hostname> when a public hostname is set (Cloudflare DNS). */
+  publicUrl?: string;
+  /** Temporary trycloudflare.com URL while a preview runs. */
+  previewUrl?: string;
 }
 
 const rank = (name: string) => {
@@ -116,6 +120,8 @@ const summarize = (p: IProject, apps: Map<string, any> | null, user?: IUser) => 
       ...envOverview(a, apps?.get(a.appName)),
       requiresApproval: requiresApproval(p, a.environment || a.branch || a.appName),
       approvalIsDefault: typeof a.requiresApproval !== 'boolean',
+      publicUrl: a.dns?.hostname ? `https://${a.dns.hostname}` : '',
+      previewUrl: a.preview?.url || '',
     }));
   const hasApp = p.gitLabRepos.some((r) => r.role === 'app') || p.gitLabRepos.some((r) => r.role !== 'gitops');
   // Older projects have no repo roles; like the provisioner, fall back to the ArgoCD apps' source repo.

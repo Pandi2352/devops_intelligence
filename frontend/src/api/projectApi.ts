@@ -176,6 +176,10 @@ export interface EnvOverview {
   history: { at: string; revision: string; by: string }[];
   requiresApproval?: boolean;
   approvalIsDefault?: boolean;
+  /** https://<hostname> when the environment has a public hostname (Cloudflare DNS). */
+  publicUrl?: string;
+  /** Temporary trycloudflare.com URL while a preview runs. */
+  previewUrl?: string;
 }
 
 export interface ProjectOverview extends Project {
