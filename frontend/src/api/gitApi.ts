@@ -1,4 +1,5 @@
 import api from './client';
+import type { DeployResult } from './environmentApi';
 import { ConnectionTestResult, GitIntegration, GitRepo, PipelineRun } from '../types';
 
 export interface GitConnectorInput {
@@ -125,11 +126,12 @@ export interface BranchComparison {
   deploysTo: { project: string; projectId: string; environment: string; namespace: string } | null;
 }
 
-export interface MergeResult {
+export interface MergeResult extends DeployResult {
   merged: boolean;
   scheduled?: boolean;
   message: string;
-  mergeRequest: MergeRequestInfo;
+  /** Absent when approvalRequired (the merge waits for an approval). */
+  mergeRequest?: MergeRequestInfo;
   targetPipeline?: PipelineRef | null;
   targetPipelineStarted?: boolean;
 }
@@ -189,9 +191,10 @@ export const gitApi = {
   triggerPipeline: async (
     integrationId: string,
     repoId: string | number,
-    ref: string = 'main'
-  ): Promise<{ message: string; pipeline: PipelineRun }> => {
-    const res = await api.post(`/git/${integrationId}/repos/${repoId}/pipelines`, { ref });
+    ref: string = 'main',
+    reason?: string
+  ): Promise<DeployResult & { pipeline?: PipelineRun }> => {
+    const res = await api.post(`/git/${integrationId}/repos/${repoId}/pipelines`, { ref, reason: reason || undefined });
     return res.data;
   },
   getJobTrace: async (integrationId: string, repoId: string | number, jobId: string | number): Promise<JobTrace> => {
@@ -229,7 +232,7 @@ export const gitApi = {
     integrationId: string,
     repoId: string | number,
     iid: number,
-    options: { squash?: boolean; removeSourceBranch?: boolean; whenPipelineSucceeds?: boolean }
+    options: { squash?: boolean; removeSourceBranch?: boolean; whenPipelineSucceeds?: boolean; reason?: string }
   ): Promise<MergeResult> => (await api.post(`/git/${integrationId}/repos/${repoId}/merge-requests/${iid}/merge`, options, { timeout: 60000 })).data,
   rebaseMergeRequest: async (integrationId: string, repoId: string | number, iid: number): Promise<{ message: string }> =>
     (await api.post(`/git/${integrationId}/repos/${repoId}/merge-requests/${iid}/rebase`)).data,

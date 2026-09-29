@@ -37,6 +37,10 @@ import { EnvironmentSetup, Project, ProjectOverview, ProjectSetup, ProvisionResu
 import { repoLabel, repoWebUrl } from '../utils/project';
 import { usePagination } from '../hooks/usePagination';
 import { Pagination } from '../components/common/Pagination';
+import { AuditLogTable } from '../components/approvals/AuditLogTable';
+import { EnvApprovalToggle } from '../components/approvals/EnvApprovalToggle';
+
+type DetailTab = 'overview' | 'setup' | 'audit';
 
 const InfoCard: React.FC<{ icon: React.ReactNode; label: string; children: React.ReactNode }> = ({ icon, label, children }) => (
   <div className="rounded-lg border border-slate-200 bg-white p-3 min-w-0">
@@ -85,12 +89,13 @@ export const ProjectDetailPage: React.FC = () => {
   const [overview, setOverview] = useState<ProjectOverview | null>(null);
   const [argoError, setArgoError] = useState<string | undefined>();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') === 'setup' ? 'setup' : 'overview';
-  const setTab = (t: 'overview' | 'setup') =>
+  const tabParam = params.get('tab');
+  const tab: DetailTab = tabParam === 'setup' || tabParam === 'audit' ? tabParam : 'overview';
+  const setTab = (t: DetailTab) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        if (t === 'setup') next.set('tab', 'setup');
+        if (t !== 'overview') next.set('tab', t);
         else next.delete('tab');
         return next;
       },
@@ -212,9 +217,10 @@ export const ProjectDetailPage: React.FC = () => {
   const envs = setup?.environments ?? [];
   const incomplete = envs.filter((e) => e.checks.some((c) => !c.ok)).length;
   const nextSetup = overview?.setup.find((s) => !s.done)?.key;
-  const TABS: { key: 'overview' | 'setup'; label: string; badge: number }[] = [
+  const TABS: { key: DetailTab; label: string; badge: number }[] = [
     { key: 'overview', label: 'Overview', badge: 0 },
     { key: 'setup', label: 'Setup checklist', badge: incomplete },
+    { key: 'audit', label: 'Audit log', badge: 0 },
   ];
 
   return (
@@ -372,6 +378,13 @@ export const ProjectDetailPage: React.FC = () => {
         </div>
       )}
 
+      {tab === 'audit' && (
+        <section className="space-y-2">
+          <p className="text-xs text-slate-500">Every deploy, sync, rollback, merge, pipeline run and approval decision on {project.name}.</p>
+          <AuditLogTable project={project.name} />
+        </section>
+      )}
+
       {tab === 'setup' && (
       <section className="rounded-lg border border-slate-200 bg-white">
         <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-200">
@@ -421,6 +434,15 @@ export const ProjectDetailPage: React.FC = () => {
                       <span className="font-sans">{env.autoSync ? 'auto-sync' : 'manual sync'}</span>
                     </div>
                     <CheckSummary checks={env.checks} />
+                    {canManage && (
+                      <EnvApprovalToggle
+                        projectId={project._id}
+                        env={env.name}
+                        value={overview?.environments.find((e) => e.name === env.name)?.requiresApproval}
+                        isDefault={overview?.environments.find((e) => e.name === env.name)?.approvalIsDefault}
+                        onChanged={loadOverview}
+                      />
+                    )}
                     <div className="flex gap-0.5" aria-label={`Shortcuts for ${env.name}`}>
                       {[
                         { label: 'Logs', icon: <ScrollText size={13} />, to: `/logs?project=${project._id}&env=${encodeURIComponent(env.name)}` },

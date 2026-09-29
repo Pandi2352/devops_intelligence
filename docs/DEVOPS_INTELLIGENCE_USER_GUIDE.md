@@ -87,7 +87,8 @@ Three rules make this safe:
    GitOps repo and ArgoCD applies it. Rollback is a Git commit too, so it's all auditable.
 
 Production is set to **manual sync** in ArgoCD: the pipeline updates Git, and a person presses
-**Sync prod**. That click is the production approval.
+**Sync prod**. In DevOps Intelligence that click becomes an **approval request**: a Manager Approver approves it,
+then DevOps Intelligence runs the sync and records who asked, who approved and how it ended (see C9).
 
 ### 2.3 Projects and environments
 
@@ -500,7 +501,8 @@ Order matters for promotion: `local → dev → qa → test → staging → uat 
 | *blocked* / *diverged* | MR can't merge / the target has extra commits | fix in GitLab (merge the hotfix back into dev) |
 | *failed* | the target pipeline failed | open the pipeline, read the job log |
 
-Every action asks for confirmation and needs a **Super Admin** or **DevOps** user.
+Every action asks for confirmation and needs **Build and Deploy** on the target environment (see Roles).
+Into an environment that needs approval (prod by default) it becomes a request instead (see C9).
 
 ### C7. Roll back and redeploy
 
@@ -518,6 +520,26 @@ to rebuild and deploy the branch head.
 kubectl -n kubeorbit-demo-qa port-forward svc/demo-api 3998:80
 curl localhost:3998/        # "message":"Hello from QA", "buildEnv":"qa", "commit":"…"
 ```
+
+### C9. Approvals (production and any environment you choose)
+
+Environments can require an approval for every deploy. **prod** / **production** do by default; a project admin
+switches any environment on or off in **Projects → project → Setup checklist → Deploys need approval**.
+
+In a gated environment these actions become a request instead of running:
+promote into it, Sync, roll back, redeploy, run its branch pipeline, and merge into its branch.
+
+| Step | Who | What happens |
+|---|---|---|
+| 1. Ask | anyone with **Build and Deploy** there | pressing the button creates a request (optionally with a reason); the environment shows *Waiting for approval* |
+| 2. Review | a **Manager Approver** or **Admin** of the project, or DevOps | **Manager Approvals** shows the request with what runs now (image, Git revision, merge request); Approve or Reject with a comment |
+| 3. Run | DevOps Intelligence | runs the exact action as the requester, after re-checking they still have access; the request becomes *Executed* or *Failed* with the result |
+
+Rules: you never approve your own request. A **Super Admin** may, as a documented break-glass, only with a written reason.
+Pending requests can be cancelled by the requester or an admin. Reviewing twice is refused.
+
+Every deploy action, gated or not, and every approval step lands in the **audit log** (Manager Approvals → Audit log, or
+the project's Audit log tab): time, who, what, where, outcome and message. Export it as CSV.
 
 ---
 

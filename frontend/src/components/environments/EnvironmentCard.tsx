@@ -1,7 +1,8 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, ExternalLink, GitBranch, History, Info, RotateCcw, RotateCw, Undo2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, ExternalLink, GitBranch, History, Info, RotateCcw, RotateCw, Undo2, XCircle } from 'lucide-react';
 import { EnvironmentView } from '../../api/environmentApi';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
+import { ApprovalRequiredBadge, PendingApprovalStrip } from './ApprovalNotice';
 
 const ACCENT: Record<string, { bar: string; label: string }> = {
   dev: { bar: 'border-l-sky-500', label: 'text-sky-700' },
@@ -52,12 +53,18 @@ export const EnvironmentCard: React.FC<EnvironmentCardProps> = ({ env, canManage
   const rolledBack = env.lastChange?.kind === 'rollback';
   const headNotDeployed = Boolean(env.branchHead && live?.commitSha && !shortSha(env.branchHead.sha, live.commitSha));
   const imageName = live ? live.image.slice(0, live.image.lastIndexOf(':')).split('/').pop() : '';
+  // A request already waits (or its approved action runs): a second click would only point at the same request.
+  const awaiting = env.pendingApproval;
+  const awaitingLabel = awaiting?.status === 'EXECUTING' ? 'Running' : 'Requested';
 
   return (
     <article aria-label={`${env.key} environment`} className={`bg-white border border-slate-200 border-l-4 ${accent.bar} rounded-md flex flex-col min-w-0`}>
       <header className="px-4 pt-3 pb-2.5 border-b border-slate-100">
         <div className="flex items-center justify-between gap-2">
-          <h3 className={`text-sm font-bold uppercase tracking-wide ${accent.label}`}>{env.key}</h3>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <h3 className={`text-sm font-bold uppercase tracking-wide ${accent.label}`}>{env.key}</h3>
+            {env.requiresApproval && <ApprovalRequiredBadge />}
+          </span>
           <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-700 whitespace-nowrap">
             <span className={`w-2 h-2 rounded-full ${statusTone(env)}`} aria-hidden />
             {env.sync} · {env.health}
@@ -150,6 +157,12 @@ export const EnvironmentCard: React.FC<EnvironmentCardProps> = ({ env, canManage
         )}
       </dl>
 
+      {awaiting && (
+        <div className="px-4 pb-3">
+          <PendingApprovalStrip pending={awaiting} />
+        </div>
+      )}
+
       {(rolledBack || drift || headNotDeployed || (env.operation && !['Succeeded', 'Running'].includes(env.operation.phase))) && (
         <div className="px-4 pb-3 space-y-1.5">
           {rolledBack && (
@@ -203,19 +216,30 @@ export const EnvironmentCard: React.FC<EnvironmentCardProps> = ({ env, canManage
           <button
             type="button"
             onClick={() => onRedeploy(env)}
-            className="h-7 px-2.5 inline-flex items-center gap-1 rounded-md border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            disabled={Boolean(awaiting)}
+            title={awaiting ? `Waiting on request: ${awaiting.summary}` : undefined}
+            className="h-7 px-2.5 inline-flex items-center gap-1 rounded-md border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RotateCcw size={12} aria-hidden /> Redeploy head
+            {awaiting ? <Clock size={12} aria-hidden /> : <RotateCcw size={12} aria-hidden />} {awaiting ? awaitingLabel : 'Redeploy head'}
           </button>
         )}
         {canManage && (env.sync !== 'Synced' || drift || syncing) && (
           <button
             type="button"
             onClick={() => onSync(env)}
-            disabled={syncing}
-            className="h-7 px-2.5 inline-flex items-center gap-1 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-60"
+            disabled={syncing || Boolean(awaiting)}
+            title={awaiting ? `Waiting on request: ${awaiting.summary}` : undefined}
+            className="h-7 px-2.5 inline-flex items-center gap-1 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RotateCw size={12} className={syncing ? 'animate-spin' : ''} aria-hidden /> {syncing ? 'Syncing' : 'Sync'}
+            {awaiting && !syncing ? (
+              <>
+                <Clock size={12} aria-hidden /> {awaitingLabel}
+              </>
+            ) : (
+              <>
+                <RotateCw size={12} className={syncing ? 'animate-spin' : ''} aria-hidden /> {syncing ? 'Syncing' : 'Sync'}
+              </>
+            )}
           </button>
         )}
       </footer>

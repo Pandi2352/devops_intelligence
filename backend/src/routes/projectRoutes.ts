@@ -8,6 +8,8 @@ import {
 } from '../controllers/projectController.js';
 import { AuthRequest, authenticate, requireManager, requireProject, requireRole } from '../middleware/auth.js';
 import { ADMIN, DEPLOY, VIEW } from '../services/access.js';
+import { approvalGate, registerApprovalHandler } from '../services/approvals.js';
+import { setEnvironmentApproval } from '../controllers/approvalController.js';
 import { getProjectOverview, getProjectsOverview } from '../controllers/projectOverviewController.js';
 import {
   getProjectEnvironments,
@@ -37,7 +39,7 @@ const env = (req: AuthRequest) => String(req.params.env);
 router.get('/:id', authenticate, requireProject(VIEW), getProjectById);
 router.get('/:id/overview', authenticate, requireProject(VIEW), getProjectOverview);
 router.get('/:id/environments', authenticate, requireProject(VIEW), getProjectEnvironments);
-router.post('/:id/environments/promote', authenticate, requireProject(DEPLOY, (req) => String(req.body?.to || '')), promoteEnvironment);
+router.post('/:id/environments/promote', authenticate, requireProject(DEPLOY, (req) => String(req.body?.to || '')), approvalGate('env.promote'), promoteEnvironment);
 router.get('/:id/setup', authenticate, requireProject(VIEW), getProjectSetup);
 router.post('/:id/environments/add', authenticate, requireProject(ADMIN), addEnvironment);
 router.get('/:id/environments/:env/checks', authenticate, requireProject(VIEW, env), getEnvironmentChecks);
@@ -46,8 +48,13 @@ router.post('/:id/environments/:env/provision', authenticate, requireProject(ADM
 router.delete('/:id/environments/:env', authenticate, requireProject(ADMIN), removeEnvironment);
 router.get('/:id/environments/:env/history', authenticate, requireProject(VIEW, env), getEnvironmentHistory);
 router.get('/:id/environments/:env/details', authenticate, requireProject(VIEW, env), getEnvironmentDetails);
-router.post('/:id/environments/:env/rollback', authenticate, requireProject(DEPLOY, env), rollbackEnvironment);
-router.post('/:id/environments/:env/redeploy', authenticate, requireProject(DEPLOY, env), redeployEnvironment);
+router.post('/:id/environments/:env/rollback', authenticate, requireProject(DEPLOY, env), approvalGate('env.rollback'), rollbackEnvironment);
+router.post('/:id/environments/:env/redeploy', authenticate, requireProject(DEPLOY, env), approvalGate('env.redeploy'), redeployEnvironment);
+router.put('/:id/environments/:env/approval', authenticate, setEnvironmentApproval);
+
+registerApprovalHandler('env.promote', promoteEnvironment);
+registerApprovalHandler('env.rollback', rollbackEnvironment);
+registerApprovalHandler('env.redeploy', redeployEnvironment);
 router.put('/:id', authenticate, requireProject(ADMIN), updateProject);
 router.delete('/:id', authenticate, requireRole(['superadmin']), deleteProject);
 

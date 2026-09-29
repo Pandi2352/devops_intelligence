@@ -1,5 +1,7 @@
 import { Response } from 'express';
 import { envLevel } from '../services/access.js';
+import { requiresApproval } from '../services/approvals.js';
+import { ApprovalRequest } from '../models/ApprovalRequest.js';
 import axios, { AxiosInstance } from 'axios';
 import { AuthRequest } from '../middleware/auth.js';
 import { Project, IProject, IArgoAppMapping } from '../models/Project.js';
@@ -515,10 +517,20 @@ export const getProjectEnvironments = async (req: AuthRequest, res: Response): P
     }
     const { environments, promotions, errors, flow, ctx } = await loadProjectEnvironments(projectDoc);
     const visible = (env: string) => envLevel(req.user, projectDoc.name, env) >= 1;
+    // Approval state per environment: is it gated, and is a request waiting or running.
+    const open = await ApprovalRequest.find({ projectName: projectDoc.name, status: { $in: ['PENDING', 'EXECUTING'] } }).sort({ createdAt: -1 });
+    const withApproval = environments.filter((e: any) => visible(e.key)).map((e: any) => {
+      const req0 = open.find((a) => a.environment === e.key);
+      return {
+        ...e,
+        requiresApproval: requiresApproval(projectDoc, e.key),
+        pendingApproval: req0 ? { id: String(req0._id), status: req0.status, summary: req0.summary, requestedBy: req0.requestedByName || req0.requestedBy, at: req0.createdAt } : null,
+      };
+    });
     res.json({
       project: { _id: projectDoc._id, name: projectDoc.name, appRepo: ctx.appRepo },
       flow,
-      environments: environments.filter((e: any) => visible(e.key)),
+      environments: withApproval,
       promotions: promotions.filter((p: any) => visible(p.to)),
       errors,
     });

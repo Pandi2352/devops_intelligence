@@ -5,17 +5,19 @@ import { Button } from '../common/Button';
 import { Toggle } from '../common/Form';
 import { ArgoAppSummary, ArgoSyncOptions } from '../../api/argoAppsApi';
 import { SyncPill } from './ArgoStatus';
+import { ReasonField } from '../environments/ApprovalNotice';
 
 interface SyncDialogProps {
   app: ArgoAppSummary;
   isSyncing: boolean;
   onCancel: () => void;
-  onConfirm: (options: ArgoSyncOptions) => void;
+  onConfirm: (options: ArgoSyncOptions, reason: string) => void;
 }
 
 // Sync with the options people actually use; always hard-refreshes from Git first (server side).
 export const SyncDialog: React.FC<SyncDialogProps> = ({ app, isSyncing, onCancel, onConfirm }) => {
   const [options, setOptions] = useState<ArgoSyncOptions>({ prune: true, applyOutOfSyncOnly: false, force: false });
+  const [reason, setReason] = useState('');
   const set = <K extends keyof ArgoSyncOptions>(key: K, value: ArgoSyncOptions[K]) => setOptions((o) => ({ ...o, [key]: value }));
 
   return (
@@ -36,7 +38,7 @@ export const SyncDialog: React.FC<SyncDialogProps> = ({ app, isSyncing, onCancel
           <Button variant="secondary" onClick={onCancel} disabled={isSyncing}>
             Cancel
           </Button>
-          <Button onClick={() => onConfirm(options)} isLoading={isSyncing} leftIcon={<RotateCw size={14} />}>
+          <Button onClick={() => onConfirm(options, reason.trim())} isLoading={isSyncing} leftIcon={<RotateCw size={14} />}>
             Sync
           </Button>
         </>
@@ -77,6 +79,7 @@ export const SyncDialog: React.FC<SyncDialogProps> = ({ app, isSyncing, onCancel
             Force re-creates resources, which can briefly take pods down.
           </p>
         )}
+        <ReasonField id="sync-reason" value={reason} onChange={setReason} hint="If this app's environment needs approval, the sync goes to the approvers first." />
       </div>
     </Modal>
   );

@@ -113,6 +113,13 @@ export const projectApi = {
   removeEnvironment: async (id: string, env: string, deleteNamespace: boolean): Promise<ProvisionResult> =>
     (await api.delete(envPath(id, env), { params: { deleteNamespace }, timeout: 120000 })).data,
   manifests: async (id: string, env: string): Promise<EnvironmentManifests> => (await api.get(`${envPath(id, env)}/manifests`, { timeout: 60000 })).data,
+  // null resets to the default (production gated, everything else not).
+  setEnvironmentApproval: async (
+    id: string,
+    env: string,
+    requiresApproval: boolean | null
+  ): Promise<{ message: string; requiresApproval: boolean; isDefault: boolean; defaultValue: boolean }> =>
+    (await api.put(`${envPath(id, env)}/approval`, { requiresApproval })).data,
 };
 
 export interface GitopsFile {
@@ -167,6 +174,8 @@ export interface EnvOverview {
   lastDeployAt: string | null;
   lastDeployBy: string;
   history: { at: string; revision: string; by: string }[];
+  requiresApproval?: boolean;
+  approvalIsDefault?: boolean;
 }
 
 export interface ProjectOverview extends Project {

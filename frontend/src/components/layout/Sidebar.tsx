@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -23,10 +23,32 @@ import {
 } from 'lucide-react';
 import { GitLabLogo } from '../connectors/ConnectorLogos';
 import { useAuth } from '../../context/AuthContext';
+import { approvalApi } from '../../api/approvalApi';
+
+const APPROVAL_POLL_MS = 60000;
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { isManager } = useAuth();
+  const { isManager, user } = useAuth();
+  const userEmail = user?.email;
+  const [waitingForMe, setWaitingForMe] = useState(0);
+
+  // Requests this user can approve; errors (including an expired session) just leave the badge hidden.
+  useEffect(() => {
+    if (!userEmail) return;
+    let alive = true;
+    const poll = () =>
+      approvalApi
+        .summary()
+        .then((s) => alive && setWaitingForMe(s.waitingForMe || 0))
+        .catch(() => undefined);
+    poll();
+    const timer = window.setInterval(poll, APPROVAL_POLL_MS);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [userEmail]);
 
   // Collapsible state for single sidebar menus and submenus
   const [isGlobalConfigOpen, setIsGlobalConfigOpen] = useState<boolean>(true);
@@ -126,9 +148,14 @@ export const Sidebar: React.FC = () => {
                 <CheckSquare size={15} />
                 <span>Manager Approvals</span>
               </div>
-              <span className="px-1.5 py-0.2 text-[10px] font-mono font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                Queue
-              </span>
+              {waitingForMe > 0 && (
+                <span
+                  className="min-w-[18px] px-1.5 text-center text-[10px] font-semibold rounded-full bg-rose-600 text-white"
+                  title={`${waitingForMe} request${waitingForMe === 1 ? '' : 's'} waiting for your approval`}
+                >
+                  {waitingForMe > 99 ? '99+' : waitingForMe}
+                </span>
+              )}
             </NavLink>
 
             <NavLink

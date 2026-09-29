@@ -1,216 +1,265 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { AlertTriangle, CheckSquare, History, Inbox, ListChecks, RefreshCw, Search, Send } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
-import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { Dropdown } from '../components/common/Dropdown';
 import { EmptyState } from '../components/common/EmptyState';
-import { ShieldCheck, CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import { approvalApi } from '../api/approvalApi';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { getApiErrorMessage } from '../api/client';
-import { usePagination } from '../hooks/usePagination';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Pagination } from '../components/common/Pagination';
-import { ApprovalRequest } from '../types';
+import { ScrollableTabs, TabItem } from '../components/common/ScrollableTabs';
+import { ApprovalCard } from '../components/approvals/ApprovalCard';
+import { ReviewDialog } from '../components/approvals/ReviewDialog';
+import { AuditLogTable } from '../components/approvals/AuditLogTable';
+import { STATUS_META } from '../components/approvals/approvalMeta';
+import { ApprovalItem, ApprovalState, approvalApi } from '../api/approvalApi';
+import { getApiErrorMessage } from '../api/client';
+import { useToast } from '../context/ToastContext';
+import { usePagination } from '../hooks/usePagination';
+
+type Tab = 'waiting' | 'mine' | 'all' | 'audit';
+const TAB_KEYS: Tab[] = ['waiting', 'mine', 'all', 'audit'];
+const FAST_POLL_MS = 3000;
+const SLOW_POLL_MS = 20000;
+
+const EMPTY: Record<Exclude<Tab, 'audit'>, { title: string; description: string }> = {
+  waiting: {
+    title: 'Nothing is waiting for you',
+    description:
+      'When someone deploys, syncs, rolls back or merges into an environment that needs approval, the request lands here for the project’s approvers. Approving runs the action straight away.',
+  },
+  mine: {
+    title: 'You have no requests',
+    description:
+      'If you trigger an action on an environment that needs approval, it is not run immediately: a request is created here and an approver is notified. You can cancel it while it is pending.',
+  },
+  all: {
+    title: 'No approval requests yet',
+    description: 'Environments marked “Deploys need approval” (production by default) turn deploy actions into requests. Project admins change this in the project’s Setup tab.',
+  },
+};
 
 export const ApprovalsPage: React.FC = () => {
-  const { user, access, isManager } = useAuth();
   const toast = useToast();
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
-  const [filterStatus, setFilterStatus] = useState<string>('ALL');
-  const [isLoading, setIsLoading] = useState(true);
-  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TAB_KEYS.includes(params.get('tab') as Tab) ? (params.get('tab') as Tab) : 'waiting';
+  const setTab = (t: Tab) => setParams(t === 'waiting' ? {} : { tab: t }, { replace: true });
 
-  const loadApprovals = async () => {
+  const [items, setItems] = useState<ApprovalItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [project, setProject] = useState('');
+  const [status, setStatus] = useState<ApprovalState | ''>('');
+
+  const [review, setReview] = useState<{ request: ApprovalItem; decision: 'APPROVED' | 'REJECTED' } | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<ApprovalItem | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+
+  const load = useCallback(async () => {
     try {
-      const data = await approvalApi.getAll();
-      setApprovals(data);
+      setItems(await approvalApi.list({ status: 'all' }));
       setLoadError(null);
     } catch (err) {
-      setApprovals([]);
       setLoadError(getApiErrorMessage(err, 'Could not load approval requests'));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadApprovals();
   }, []);
 
-  // Admins, and Manager Approvers / project Admins of that project; never your own request (the API enforces the same).
-  const canReview = (item: ApprovalRequest) =>
-    item.requestedBy !== user?.email &&
-    item.requestedBy !== user?.name &&
-    (isManager || Boolean(access?.projects.find((p) => p.name === item.projectName)?.canApprove));
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const handleReview = async (id: string, status: 'APPROVED' | 'REJECTED') => {
-    setActionInProgress(id);
+  // Follow running requests closely; otherwise refresh now and then for new requests.
+  const anyExecuting = items.some((r) => r.status === 'EXECUTING' || r.status === 'APPROVED');
+  useEffect(() => {
+    if (tab === 'audit') return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) load();
+    }, anyExecuting ? FAST_POLL_MS : SLOW_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [anyExecuting, load, tab]);
+
+  const counts = useMemo(
+    () => ({
+      waiting: items.filter((r) => r.canReview && r.status === 'PENDING').length,
+      mine: items.filter((r) => r.mine && r.status === 'PENDING').length,
+    }),
+    [items]
+  );
+  const projects = useMemo(() => [...new Set(items.map((r) => r.projectName).filter(Boolean))].sort(), [items]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return items.filter((r) => {
+      if (tab === 'waiting' && !(r.canReview && r.status === 'PENDING')) return false;
+      if (tab === 'mine' && !r.mine) return false;
+      if (project && r.projectName !== project) return false;
+      if (status && tab !== 'waiting' && r.status !== status) return false;
+      if (!needle) return true;
+      return `${r.summary} ${r.action} ${r.resource} ${r.environment} ${r.reason} ${r.requestedBy} ${r.requestedByName}`.toLowerCase().includes(needle);
+    });
+  }, [items, tab, project, status, query]);
+  const paging = usePagination(visible, 10, `${tab}|${project}|${status}|${query}`);
+
+  const openReview = (request: ApprovalItem, decision: 'APPROVED' | 'REJECTED') => {
+    setReviewError(null);
+    setReview({ request, decision });
+  };
+
+  const submitReview = async (comment: string) => {
+    if (!review) return;
+    setReviewBusy(true);
+    setReviewError(null);
     try {
-      const updated = await approvalApi.review(id, status);
-      setApprovals((prev) => prev.map((a) => (a._id === id ? updated : a)));
-      toast.success(`Request ${status === 'APPROVED' ? 'approved' : 'rejected'}`);
+      const res = await approvalApi.decide(review.request._id, review.decision, comment);
+      toast.success(res.message || (review.decision === 'APPROVED' ? 'Approved — running now' : 'Request rejected'));
+      setReview(null);
+      await load();
     } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Could not review the request'));
+      setReviewError(getApiErrorMessage(err, 'Could not save the decision'));
+      load();
     } finally {
-      setActionInProgress(null);
+      setReviewBusy(false);
     }
   };
 
-  const filtered =
-    filterStatus === 'ALL'
-      ? approvals
-      : approvals.filter((a) => a.status === filterStatus);
-  const pager = usePagination(filtered, 10, filterStatus);
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelBusy(true);
+    try {
+      const res = await approvalApi.cancel(cancelTarget._id);
+      toast.success(res.message || 'Request cancelled');
+      setCancelTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Could not cancel the request'));
+    } finally {
+      setCancelBusy(false);
+    }
+  };
 
-  if (isLoading) return <LoadingSpinner message="Loading Manager Approval Queue..." />;
-
-  const pendingCount = approvals.filter((a) => a.status === 'PENDING').length;
+  const badge = (n: number, tone: string) =>
+    n > 0 ? <span className={`ml-1 px-1.5 rounded-full text-[10px] font-semibold ${tone}`}>{n}</span> : undefined;
+  const tabs: TabItem<Tab>[] = [
+    { id: 'waiting', label: 'Waiting for me', icon: <Inbox size={14} />, badge: badge(counts.waiting, 'bg-rose-600 text-white') },
+    { id: 'mine', label: 'My requests', icon: <Send size={14} />, badge: badge(counts.mine, 'bg-amber-100 text-amber-900') },
+    { id: 'all', label: 'All', icon: <ListChecks size={14} /> },
+    { id: 'audit', label: 'Audit log', icon: <History size={14} /> },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
-        title="Manager Approval Queue"
-        description="Governance checkpoint for sensitive cluster write operations (Pod restarts, replica scaling, production releases)"
-        badge={
-          pendingCount > 0 ? (
-            <Badge label={`${pendingCount} Pending Approval`} variant="degraded" withPulse />
-          ) : (
-            <Badge label="All Clear" variant="healthy" />
+        title="Approvals"
+        description="Deploy actions on protected environments wait here for a second person. Approved requests run automatically, and everything is recorded in the audit log."
+        actions={
+          tab !== 'audit' && (
+            <Button variant="secondary" size="sm" leftIcon={<RefreshCw size={13} className={anyExecuting ? 'animate-spin' : ''} />} onClick={load}>
+              Refresh
+            </Button>
           )
         }
       />
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2">
-        {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((st) => (
-          <button
-            key={st}
-            onClick={() => setFilterStatus(st)}
-            className={`px-3 py-1 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors ${
-              filterStatus === st
-                ? 'bg-sky-50 text-sky-700 border border-sky-300 font-bold'
-                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-            }`}
-          >
-            {st}
-          </button>
-        ))}
-      </div>
+      <ScrollableTabs tabs={tabs} activeTab={tab} onChange={setTab} />
 
-      {/* Approvals Table */}
-      {loadError && (
-        <div className="p-3 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2" role="alert">
-          <AlertTriangle size={14} /> {loadError}
-        </div>
-      )}
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={<ShieldCheck size={28} />}
-          title="No approval requests in this view"
-          description="Requests for pod restarts, scaling, or production deployments will appear here for DevOps Manager authorization."
-        />
+      {tab === 'audit' ? (
+        <AuditLogTable />
       ) : (
-        <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-          <table className="w-full text-left text-xs text-slate-700">
-            <thead className="text-[11px] uppercase bg-slate-50 text-slate-600 border-b border-slate-200 font-mono font-bold">
-              <tr>
-                <th className="px-4 py-2.5">Project & Resource</th>
-                <th className="px-4 py-2.5">Requested Action</th>
-                <th className="px-4 py-2.5">Requested By</th>
-                <th className="px-4 py-2.5">Reason</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5 text-right">Manager Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pager.pageItems.map((item) => (
-                <tr key={item._id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="font-bold text-slate-900 capitalize">{item.projectName}</div>
-                    <div className="font-mono text-[11px] text-sky-700">{item.resource}</div>
-                  </td>
-
-                  <td className="px-4 py-3 font-mono font-bold text-xs text-purple-700">
-                    {item.action}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-800">{item.requestedBy}</div>
-                    <span className="text-[10px] text-slate-500 font-mono uppercase">
-                      Role: {item.requestedByRole}
-                    </span>
-                  </td>
-
-                  <td className="px-4 py-3 max-w-xs text-slate-600 truncate">
-                    {item.reason}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    <Badge
-                      label={item.status}
-                      variant={
-                        item.status === 'APPROVED'
-                          ? 'healthy'
-                          : item.status === 'REJECTED'
-                          ? 'offline'
-                          : 'degraded'
-                      }
-                      withPulse={item.status === 'PENDING'}
-                    />
-                  </td>
-
-                  <td className="px-4 py-3 text-right">
-                    {item.status === 'PENDING' ? (
-                      canReview(item) ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            isLoading={actionInProgress === item._id}
-                            onClick={() => handleReview(item._id, 'APPROVED')}
-                            leftIcon={<CheckCircle2 size={12} />}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            isLoading={actionInProgress === item._id}
-                            onClick={() => handleReview(item._id, 'REJECTED')}
-                            leftIcon={<XCircle size={12} />}
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-amber-700 font-medium flex items-center justify-end gap-1">
-                          <Clock size={12} /> Awaiting Manager
-                        </span>
-                      )
-                    ) : (
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        {item.reviewedBy ? `Reviewed by ${item.reviewedBy}` : 'Completed'}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="border-t border-slate-200 px-4 py-2.5">
-            <Pagination
-              page={pager.page}
-              pageSize={pager.pageSize}
-              total={pager.total}
-              onPageChange={pager.setPage}
-              onPageSizeChange={pager.setPageSize}
-              itemLabel="requests"
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[220px] max-w-sm">
+              <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by summary, environment, person or reason"
+                aria-label="Search requests"
+                className="w-full h-9 pl-8 pr-3 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+              />
+            </div>
+            <Dropdown
+              ariaLabel="Project"
+              value={project}
+              onChange={setProject}
+              options={[{ value: '', label: 'All projects' }, ...projects.map((p) => ({ value: p, label: p }))]}
+              placeholder="All projects"
             />
+            {tab !== 'waiting' && (
+              <Dropdown<ApprovalState | ''>
+                ariaLabel="Status"
+                value={status}
+                onChange={setStatus}
+                options={[
+                  { value: '', label: 'Any status' },
+                  ...(Object.keys(STATUS_META) as ApprovalState[]).map((s) => ({ value: s, label: STATUS_META[s].label })),
+                ]}
+                placeholder="Any status"
+              />
+            )}
           </div>
-        </div>
+
+          {loadError && (
+            <div className="p-3 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2" role="alert">
+              <AlertTriangle size={14} /> {loadError}
+            </div>
+          )}
+
+          {loading ? (
+            <LoadingSpinner />
+          ) : !visible.length ? (
+            items.length && (query || project || status) ? (
+              <EmptyState icon={<Search size={22} />} title="No requests match" description="Clear the search or filters to see more." />
+            ) : (
+              <EmptyState icon={<CheckSquare size={22} />} {...EMPTY[tab]} />
+            )
+          ) : (
+            <div className="space-y-3">
+              {paging.pageItems.map((r) => (
+                <ApprovalCard
+                  key={r._id}
+                  request={r}
+                  busy={reviewBusy || cancelBusy}
+                  onApprove={(x) => openReview(x, 'APPROVED')}
+                  onReject={(x) => openReview(x, 'REJECTED')}
+                  onCancel={setCancelTarget}
+                />
+              ))}
+              {visible.length > paging.pageSize && (
+                <Pagination page={paging.page} pageSize={paging.pageSize} total={paging.total} onPageChange={paging.setPage} onPageSizeChange={paging.setPageSize} itemLabel="requests" />
+              )}
+            </div>
+          )}
+        </>
       )}
+
+      {review && (
+        <ReviewDialog
+          key={`${review.request._id}-${review.decision}`}
+          request={review.request}
+          decision={review.decision}
+          busy={reviewBusy}
+          error={reviewError}
+          onSubmit={submitReview}
+          onClose={() => !reviewBusy && setReview(null)}
+        />
+      )}
+
+      <ConfirmDialog
+        isOpen={Boolean(cancelTarget)}
+        title="Cancel this request?"
+        message={cancelTarget ? `“${cancelTarget.summary || cancelTarget.action}” will not run. You can trigger the action again later to create a new request.` : ''}
+        confirmLabel="Cancel request"
+        tone="danger"
+        isLoading={cancelBusy}
+        onConfirm={confirmCancel}
+        onCancel={() => !cancelBusy && setCancelTarget(null)}
+      />
     </div>
   );
 };

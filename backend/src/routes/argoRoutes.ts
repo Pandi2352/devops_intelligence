@@ -15,6 +15,7 @@ import {
 import { AuthRequest, authenticate, requireManager, requireRole } from '../middleware/auth.js';
 import { Level, LEVEL_NAME, VIEW, DEPLOY, envLevel, envNameOf, isManager } from '../services/access.js';
 import { Project } from '../models/Project.js';
+import { approvalGate, registerApprovalHandler } from '../services/approvals.js';
 import { NextFunction, Response } from 'express';
 import {
   listApps,
@@ -47,7 +48,7 @@ const canManageConnectors = requireRole(['superadmin', 'devops']);
 router.get('/status', authenticate, getArgoStatus);
 router.post('/config', authenticate, canManageConnectors, updateArgoConfig);
 router.get('/applications', authenticate, requireManager, listArgoApplications);
-router.post('/applications/:name/sync', authenticate, canManageConnectors, syncArgoApplication);
+router.post('/applications/:name/sync', authenticate, canManageConnectors, approvalGate('argo.sync'), syncArgoApplication);
 
 router.get('/connectors', authenticate, requireManager, listArgoConnectors);
 router.post('/connectors', authenticate, canManageConnectors, createArgoConnector);
@@ -64,8 +65,11 @@ router.get('/apps/:name/tree', authenticate, requireApp(VIEW), getAppTree);
 router.get('/apps/:name/diff', authenticate, requireApp(VIEW), getAppDiff);
 router.get('/apps/:name/events', authenticate, requireApp(VIEW), getAppEvents);
 router.post('/apps/:name/refresh', authenticate, requireApp(VIEW), refreshApp);
-router.post('/apps/:name/sync', authenticate, requireApp(DEPLOY), syncApp);
-router.post('/apps/:name/rollback', authenticate, requireApp(DEPLOY), rollbackApp);
+router.post('/apps/:name/sync', authenticate, requireApp(DEPLOY), approvalGate('argo.sync'), syncApp);
+router.post('/apps/:name/rollback', authenticate, requireApp(DEPLOY), approvalGate('argo.rollback'), rollbackApp);
+
+registerApprovalHandler('argo.sync', syncApp);
+registerApprovalHandler('argo.rollback', rollbackApp);
 router.delete('/apps/:name/operation', authenticate, requireApp(DEPLOY), terminateOperation);
 
 export default router;

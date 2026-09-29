@@ -22,6 +22,8 @@ export interface IArgoAppMapping {
   environment?: string;
   /** Git branch of the app repo that deploys to this environment (branch-per-environment flow). */
   branch?: string;
+  /** Deploys need an approved request. null/undefined = default (prod and production do). */
+  requiresApproval?: boolean | null;
 }
 
 export interface IProject extends Document {
@@ -70,6 +72,7 @@ const ProjectSchema = new Schema<IProject>(
         targetNamespace: { type: String, default: 'default' },
         environment: { type: String, default: '' },
         branch: { type: String, default: '' },
+        requiresApproval: { type: Boolean, default: null },
         serverUrl: { type: String, default: 'https://argocd.kubeorbit.local' },
       },
     ],

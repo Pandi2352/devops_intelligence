@@ -11,9 +11,10 @@ import { EnvironmentCard } from '../components/environments/EnvironmentCard';
 import { PromotionPath } from '../components/environments/PromotionPath';
 import { DeployHistoryModal } from '../components/environments/DeployHistoryModal';
 import { EnvironmentDetailsModal } from '../components/environments/EnvironmentDetailsModal';
+import { ApprovalNotice, ApprovalRequestedBanner } from '../components/environments/ApprovalNotice';
 import api, { getApiErrorMessage } from '../api/client';
-import { argoApi } from '../api/argoApi';
-import { environmentApi, EnvironmentView, ProjectEnvironments, PromotionView } from '../api/environmentApi';
+import { argoAppsApi } from '../api/argoAppsApi';
+import { DeployResult, environmentApi, EnvironmentView, ProjectEnvironments, PromotionView } from '../api/environmentApi';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -56,7 +57,7 @@ const describeAction = (pending: PendingAction): { title: string; label: string;
               , deploying <span className="block font-mono text-xs my-1 break-all">{env.desired.tag}</span>
             </>
           )}
-          {!env.autoSync && ' This is the approval step for this environment.'}
+          {!env.autoSync && ' This environment deploys only when synced by hand.'}
         </>
       ),
     };
@@ -151,6 +152,9 @@ export const EnvironmentsPage: React.FC = () => {
   const [isActing, setIsActing] = useState(false);
   const [historyFor, setHistoryFor] = useState<EnvironmentView | null>(null);
   const [detailsFor, setDetailsFor] = useState<EnvironmentView | null>(null);
+  const [reason, setReason] = useState('');
+  // Last request sent to the approvers, shown with a link to follow it.
+  const [requested, setRequested] = useState<string | null>(null);
 
   const withApps = useMemo(() => (projects || []).filter((p) => p.argoApps?.length > 0), [projects]);
   const projectId = searchParams.get('project') || withApps[0]?._id || '';
@@ -193,20 +197,32 @@ export const EnvironmentsPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [transient, load]);
 
+  // A gated deploy answers 202 with a request instead of running: say so, never report success.
+  const handleResult = (result: DeployResult) => {
+    if (result.approvalRequired) {
+      toast.info(result.message || 'Approval requested');
+      setRequested(result.message || 'Your request was sent to the approvers.');
+    } else {
+      toast.success(result.message);
+    }
+  };
+
   const confirmAction = async () => {
     if (!pending || !data) return;
     setIsActing(true);
     try {
-      let message: string;
+      const why = reason.trim();
+      let result: DeployResult;
       if (pending.kind === 'promote') {
-        message = (await environmentApi.promote(data.project._id, pending.promotion.from, pending.promotion.to)).message;
+        result = await environmentApi.promote(data.project._id, pending.promotion.from, pending.promotion.to, why);
       } else if (pending.kind === 'redeploy') {
-        message = (await environmentApi.redeploy(data.project._id, pending.env.key)).message;
+        result = await environmentApi.redeploy(data.project._id, pending.env.key, why);
       } else {
-        message = (await argoApi.syncApp(pending.env.appName)).message;
+        result = await argoAppsApi.sync(pending.env.appName, {}, why);
       }
-      toast.success(message);
+      handleResult(result);
       setPending(null);
+      setReason('');
       await load(true);
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Action failed'));
@@ -216,6 +232,12 @@ export const EnvironmentsPage: React.FC = () => {
   };
 
   const action = describeAction(pending);
+  const target = !pending || !data ? undefined : pending.kind === 'promote' ? data.environments.find((e) => e.key === pending.promotion.to) : pending.env;
+  const closeConfirm = () => {
+    if (isActing) return;
+    setPending(null);
+    setReason('');
+  };
 
   return (
     <div className="space-y-5">
@@ -254,6 +276,8 @@ export const EnvironmentsPage: React.FC = () => {
           {error}
         </div>
       )}
+
+      {requested && <ApprovalRequestedBanner message={requested} onDismiss={() => setRequested(null)} />}
 
       {projects === null ? (
         <LoadingSpinner message="Loading projects…" />
@@ -313,12 +337,17 @@ export const EnvironmentsPage: React.FC = () => {
       <ConfirmDialog
         isOpen={Boolean(pending)}
         title={action.title}
-        message={action.message}
-        confirmLabel={action.label}
+        message={
+          <>
+            {action.message}
+            {target?.requiresApproval && <ApprovalNotice env={target.key} reason={reason} onReason={setReason} />}
+          </>
+        }
+        confirmLabel={target?.requiresApproval ? 'Request approval' : action.label}
         tone="primary"
         isLoading={isActing}
         onConfirm={confirmAction}
-        onCancel={() => !isActing && setPending(null)}
+        onCancel={closeConfirm}
       />
 
       {historyFor && data && (
@@ -327,9 +356,9 @@ export const EnvironmentsPage: React.FC = () => {
           env={historyFor}
           canManage={canDeployTo(historyFor.key)}
           onClose={() => setHistoryFor(null)}
-          onRolledBack={(message) => {
+          onRolledBack={(result) => {
             setHistoryFor(null);
-            toast.success(message);
+            handleResult(result);
             load(true);
           }}
         />

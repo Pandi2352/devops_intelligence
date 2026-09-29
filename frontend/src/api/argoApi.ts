@@ -1,4 +1,5 @@
 import api from './client';
+import type { DeployResult } from './environmentApi';
 import { ArgoApplication, ArgoAuthType, ArgoIntegration, ConnectionTestResult } from '../types';
 
 export interface ArgoConnectorInput {
@@ -36,8 +37,9 @@ export const argoApi = {
     const res = await api.get('/argocd/applications');
     return res.data.applications;
   },
-  syncApp: async (name: string): Promise<any> => {
-    const res = await api.post(`/argocd/applications/${encodeURIComponent(name)}/sync`);
+  // Legacy admin-only endpoint; pages use argoAppsApi.sync (permission-aware, approval-gated).
+  syncApp: async (name: string, reason?: string): Promise<DeployResult> => {
+    const res = await api.post(`/argocd/applications/${encodeURIComponent(name)}/sync`, { reason: reason || undefined });
     return res.data;
   },
 

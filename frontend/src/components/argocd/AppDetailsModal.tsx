@@ -11,6 +11,7 @@ import { useToast } from '../../context/ToastContext';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
 import { HealthPill, OperationPill, SyncPill } from './ArgoStatus';
 import { clusterLabel, commitUrl, repoShortName } from '../../utils/argo';
+import { ApprovalRequestedBanner, ReasonField } from '../environments/ApprovalNotice';
 
 type Tab = 'overview' | 'resources' | 'diff' | 'history' | 'events';
 
@@ -207,14 +208,24 @@ const HistoryView: React.FC<{ app: ArgoAppDetail; canManage: boolean; onRolledBa
   const [target, setTarget] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+  const [requested, setRequested] = useState<string | null>(null);
 
   const rollback = async () => {
     if (target === null) return;
     setBusy(true);
     setError(null);
     try {
-      toast.success((await argoAppsApi.rollback(app.name, target)).message);
+      const res = await argoAppsApi.rollback(app.name, target, reason.trim());
       setTarget(null);
+      setReason('');
+      if (res.approvalRequired) {
+        // Nothing changed yet: keep the history as is and point to the request.
+        toast.info(res.message);
+        setRequested(res.message);
+        return;
+      }
+      toast.success(res.message);
       onRolledBack();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Rollback failed'));
@@ -229,6 +240,11 @@ const HistoryView: React.FC<{ app: ArgoAppDetail; canManage: boolean; onRolledBa
 
   return (
     <>
+      {requested && (
+        <div className="mb-3">
+          <ApprovalRequestedBanner message={requested} onDismiss={() => setRequested(null)} />
+        </div>
+      )}
       {app.autoSync.enabled && (
         <p className="mb-3 p-2.5 rounded-md border border-sky-200 bg-sky-50 text-sky-900 text-[11px]">
           Auto-sync is on, so ArgoCD rollback is disabled: it would re-apply Git immediately. Roll back through Git instead
@@ -293,9 +309,18 @@ const HistoryView: React.FC<{ app: ArgoAppDetail; canManage: boolean; onRolledBa
         confirmLabel="Roll back"
         isLoading={busy}
         error={error}
-        onCancel={() => !busy && setTarget(null)}
+        onCancel={() => {
+          if (busy) return;
+          setTarget(null);
+          setReason('');
+        }}
         onConfirm={rollback}
-        message="ArgoCD re-applies the manifests of that sync. Git is not changed, so the app shows OutOfSync until you sync or fix Git."
+        message={
+          <div className="space-y-3">
+            <p>ArgoCD re-applies the manifests of that sync. Git is not changed, so the app shows OutOfSync until you sync or fix Git.</p>
+            <ReasonField id="argo-rollback-reason" value={reason} onChange={setReason} hint="If this app's environment needs approval, the rollback goes to the approvers first." />
+          </div>
+        }
       />
     </>
   );

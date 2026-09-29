@@ -1,19 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink, History, Loader2, Undo2 } from 'lucide-react';
+import { Clock, ExternalLink, History, Loader2, Undo2 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Pagination } from '../common/Pagination';
 import { usePagination } from '../../hooks/usePagination';
-import { environmentApi, DeployHistoryEntry, EnvironmentView } from '../../api/environmentApi';
+import { environmentApi, DeployHistoryEntry, DeployResult, EnvironmentView } from '../../api/environmentApi';
 import { getApiErrorMessage } from '../../api/client';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
+import { ApprovalNotice, ApprovalRequiredBadge, PendingApprovalStrip } from './ApprovalNotice';
 
 interface DeployHistoryModalProps {
   projectId: string;
   env: EnvironmentView;
   canManage: boolean;
   onClose: () => void;
-  onRolledBack: (message: string) => void;
+  /** Called with the API answer: either the rollback ran, or (approvalRequired) a request went to the approvers. */
+  onRolledBack: (result: DeployResult) => void;
 }
 
 const KIND_STYLE: Record<DeployHistoryEntry['kind'], string> = {
@@ -29,6 +31,8 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
   const [target, setTarget] = useState<DeployHistoryEntry | null>(null);
   const [isRollingBack, setIsRollingBack] = useState(false);
   const [rollbackError, setRollbackError] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+  const awaiting = env.pendingApproval;
   const pager = usePagination(entries || [], 10, env.key);
 
   useEffect(() => {
@@ -43,9 +47,10 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
     setIsRollingBack(true);
     setRollbackError(null);
     try {
-      const res = await environmentApi.rollback(projectId, env.key, target.id);
+      const res = await environmentApi.rollback(projectId, env.key, target.id, reason.trim());
       setTarget(null);
-      onRolledBack(res.message);
+      setReason('');
+      onRolledBack(res);
     } catch (err) {
       setRollbackError(getApiErrorMessage(err, 'Rollback failed'));
     } finally {
@@ -69,6 +74,12 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
           </div>
         }
       >
+        {(env.requiresApproval || awaiting) && (
+          <div className="mb-3 space-y-2">
+            {env.requiresApproval && <ApprovalRequiredBadge />}
+            {awaiting && <PendingApprovalStrip pending={awaiting} />}
+          </div>
+        )}
         {error ? (
           <div className="p-3 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs">{error}</div>
         ) : !entries ? (
@@ -123,9 +134,11 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
                           setRollbackError(null);
                           setTarget(e);
                         }}
-                        className="shrink-0 h-7 px-2.5 inline-flex items-center gap-1 rounded-md border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-900 cursor-pointer"
+                        disabled={Boolean(awaiting)}
+                        title={awaiting ? `Waiting on request: ${awaiting.summary}` : undefined}
+                        className="shrink-0 h-7 px-2.5 inline-flex items-center gap-1 rounded-md border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-900 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                       >
-                        <Undo2 size={12} aria-hidden /> Roll back here
+                        {awaiting ? <Clock size={12} aria-hidden /> : <Undo2 size={12} aria-hidden />} {awaiting ? 'Requested' : 'Roll back here'}
                       </button>
                     )}
                   </div>
@@ -143,10 +156,14 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
         isOpen={Boolean(target)}
         title={`Roll back ${env.key}?`}
         tone="danger"
-        confirmLabel="Roll back"
+        confirmLabel={env.requiresApproval ? 'Request rollback' : 'Roll back'}
         isLoading={isRollingBack}
         error={rollbackError}
-        onCancel={() => !isRollingBack && setTarget(null)}
+        onCancel={() => {
+          if (isRollingBack) return;
+          setTarget(null);
+          setReason('');
+        }}
         onConfirm={confirmRollback}
         message={
           target && (
@@ -159,6 +176,7 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
               )}
               back into the {env.key} overlay and syncs ArgoCD right away. The {env.branch || 'source'} branch is not changed:
               fix forward and promote again, or use <em>Redeploy head</em>.
+              {env.requiresApproval && <ApprovalNotice env={env.key} reason={reason} onReason={setReason} id="rollback-reason" />}
             </>
           )
         }

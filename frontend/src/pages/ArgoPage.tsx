@@ -12,6 +12,7 @@ import { HealthPill, OperationPill, SyncPill } from '../components/argocd/ArgoSt
 import { clusterLabel, repoShortName } from '../utils/argo';
 import { SyncDialog } from '../components/argocd/SyncDialog';
 import { AppDetailsModal } from '../components/argocd/AppDetailsModal';
+import { ApprovalRequestedBanner } from '../components/environments/ApprovalNotice';
 import { argoApi } from '../api/argoApi';
 import { argoAppsApi, ArgoAppSummary, ArgoSyncOptions } from '../api/argoAppsApi';
 import { getApiErrorMessage } from '../api/client';
@@ -92,6 +93,8 @@ export const ArgoPage: React.FC = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [syncTarget, setSyncTarget] = useState<ArgoAppSummary | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  // A gated sync that went to the approvers instead of running.
+  const [approvalMsg, setApprovalMsg] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<string | null>(null);
 
   const detailsName = searchParams.get('app');
@@ -181,11 +184,17 @@ export const ArgoPage: React.FC = () => {
       { replace: true }
     );
 
-  const runSync = async (options: ArgoSyncOptions) => {
+  const runSync = async (options: ArgoSyncOptions, reason: string) => {
     if (!syncTarget) return;
     setIsSyncing(true);
     try {
-      toast.success((await argoAppsApi.sync(syncTarget.name, options)).message);
+      const res = await argoAppsApi.sync(syncTarget.name, options, reason);
+      if (res.approvalRequired) {
+        toast.info(res.message);
+        setApprovalMsg(res.message);
+      } else {
+        toast.success(res.message);
+      }
       setSyncTarget(null);
       await loadApps(true);
     } catch (err) {
@@ -409,6 +418,8 @@ export const ArgoPage: React.FC = () => {
           </Link>
         </div>
       </section>
+
+      {approvalMsg && <ApprovalRequestedBanner message={approvalMsg} onDismiss={() => setApprovalMsg(null)} />}
 
       {error && (
         <div className="p-3 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-3" role="alert">

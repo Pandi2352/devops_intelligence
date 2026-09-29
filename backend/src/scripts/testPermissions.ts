@@ -139,6 +139,14 @@ const main = async () => {
     check('alice sees her own request', await listFor('dev.alice'));
   }
 
+  // Probes into approval-gated environments (prod) and the approval checks created requests: cancel them.
+  const pending = await call(tokens['test.admin'], { name: 'pending', path: '/approvals?status=PENDING' });
+  for (const r of pending.data?.approvals || []) {
+    if (String(r.summary || '').startsWith('Promote none') || /permission test|self-approval test/.test(String(r.reason || ''))) {
+      await call(tokens['test.admin'], { name: 'cancel', method: 'POST', path: `/approvals/${r._id}/cancel` });
+    }
+  }
+
   console.log(`\nRESULT: ${pass} passed, ${failures.length} failed`);
   failures.forEach((f) => console.log(`  FAIL ${f}`));
   process.exit(failures.length ? 1 : 0);

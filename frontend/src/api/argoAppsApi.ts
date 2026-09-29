@@ -1,4 +1,5 @@
 import api from './client';
+import type { DeployResult } from './environmentApi';
 
 export interface ArgoAppSummary {
   name: string;
@@ -104,7 +105,10 @@ export const argoAppsApi = {
   diff: async (name: string): Promise<ArgoDiffItem[]> => (await api.get(`/argocd/apps/${enc(name)}/diff`)).data.items,
   events: async (name: string): Promise<ArgoEvent[]> => (await api.get(`/argocd/apps/${enc(name)}/events`)).data.events,
   refresh: async (name: string, hard: boolean): Promise<{ message: string }> => (await api.post(`/argocd/apps/${enc(name)}/refresh`, { hard })).data,
-  sync: async (name: string, options: ArgoSyncOptions): Promise<{ message: string }> => (await api.post(`/argocd/apps/${enc(name)}/sync`, options)).data,
-  rollback: async (name: string, id: number): Promise<{ message: string }> => (await api.post(`/argocd/apps/${enc(name)}/rollback`, { id })).data,
+  // Omitted options take the server defaults (prune on, force and applyOutOfSyncOnly off).
+  sync: async (name: string, options: Partial<ArgoSyncOptions>, reason?: string): Promise<DeployResult> =>
+    (await api.post(`/argocd/apps/${enc(name)}/sync`, { ...options, reason: reason || undefined })).data,
+  rollback: async (name: string, id: number, reason?: string): Promise<DeployResult> =>
+    (await api.post(`/argocd/apps/${enc(name)}/rollback`, { id, reason: reason || undefined })).data,
   terminate: async (name: string): Promise<{ message: string }> => (await api.delete(`/argocd/apps/${enc(name)}/operation`)).data,
 };

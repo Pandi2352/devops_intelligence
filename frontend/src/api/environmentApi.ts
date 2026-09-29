@@ -34,6 +34,24 @@ export interface EnvironmentView {
   branchHead?: { sha: string; title: string; author: string; date: string; webUrl: string } | null;
   branchPipeline?: { id: number; status: string; sha: string; webUrl: string } | null;
   lastChange?: { sha: string; title: string; author: string; date: string; webUrl: string; kind: 'deploy' | 'rollback' | 'other' } | null;
+  /** Deploys into this environment wait for an approved request. */
+  requiresApproval?: boolean;
+  pendingApproval?: PendingApproval | null;
+}
+
+export interface PendingApproval {
+  id: string;
+  status: 'PENDING' | 'EXECUTING';
+  summary: string;
+  requestedBy: string;
+  at: string;
+}
+
+// Answer of every deploy call. approvalRequired = nothing ran yet: a request went to the approvers (HTTP 202).
+export interface DeployResult {
+  message: string;
+  approvalRequired?: boolean;
+  request?: { _id: string; status: string; summary?: string };
 }
 
 export type PromotionState =
@@ -114,20 +132,20 @@ export const environmentApi = {
     const res = await api.get(`/projects/${projectId}/environments`);
     return res.data;
   },
-  promote: async (projectId: string, from: string, to: string): Promise<{ message: string }> => {
-    const res = await api.post(`/projects/${projectId}/environments/promote`, { from, to });
+  promote: async (projectId: string, from: string, to: string, reason?: string): Promise<DeployResult> => {
+    const res = await api.post(`/projects/${projectId}/environments/promote`, { from, to, reason: reason || undefined });
     return res.data;
   },
   history: async (projectId: string, env: string): Promise<DeployHistoryEntry[]> => {
     const res = await api.get(`/projects/${projectId}/environments/${env}/history`);
     return res.data.entries;
   },
-  rollback: async (projectId: string, env: string, sha: string): Promise<{ message: string }> => {
-    const res = await api.post(`/projects/${projectId}/environments/${env}/rollback`, { sha });
+  rollback: async (projectId: string, env: string, sha: string, reason?: string): Promise<DeployResult> => {
+    const res = await api.post(`/projects/${projectId}/environments/${env}/rollback`, { sha, reason: reason || undefined });
     return res.data;
   },
-  redeploy: async (projectId: string, env: string): Promise<{ message: string }> => {
-    const res = await api.post(`/projects/${projectId}/environments/${env}/redeploy`);
+  redeploy: async (projectId: string, env: string, reason?: string): Promise<DeployResult> => {
+    const res = await api.post(`/projects/${projectId}/environments/${env}/redeploy`, { reason: reason || undefined });
     return res.data;
   },
   details: async (projectId: string, env: string): Promise<EnvironmentDetails> => {

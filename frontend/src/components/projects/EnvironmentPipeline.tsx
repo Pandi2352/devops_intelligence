@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, ChevronRight, GitCommitHorizontal, Rocket } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, GitCommitHorizontal, Lock, Rocket } from 'lucide-react';
 import { EnvOverview, EnvState } from '../../api/projectApi';
 import { ENV_STATE_META } from '../../utils/project';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
@@ -71,6 +71,14 @@ export const EnvironmentTile: React.FC<{ env: EnvOverview; previous?: EnvOvervie
         <div>
           <div className="text-base font-bold font-mono text-slate-900">{env.name}</div>
           <div className="text-[11px] font-mono text-slate-500">{env.namespace}</div>
+          {env.requiresApproval && (
+            <span
+              className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-900 text-[10px] font-semibold"
+              title="Deploys, syncs, rollbacks and merges here wait for an approver"
+            >
+              <Lock size={10} /> Approval required
+            </span>
+          )}
         </div>
         <EnvStateChip state={env.state} />
       </div>

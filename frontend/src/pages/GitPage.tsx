@@ -42,6 +42,7 @@ import { FolderPlus, GitMerge, Upload } from 'lucide-react';
 import { CreateRepoModal } from '../components/git/CreateRepoModal';
 import { PushTemplateModal } from '../components/git/PushTemplateModal';
 import { JobLogModal } from '../components/git/JobLogModal';
+import { ApprovalRequestedBanner, ReasonField } from '../components/environments/ApprovalNotice';
 
 const ACTIVE_PIPELINE_STATUSES = ['created', 'waiting_for_resource', 'preparing', 'pending', 'running'];
 const PIPELINE_POLL_MS = 5000;
@@ -124,6 +125,8 @@ export const GitPage: React.FC = () => {
   // User Notification States (Error & Success)
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  // A gated action (pipeline, sync) that went to the approvers instead of running.
+  const [approvalMsg, setApprovalMsg] = useState<string | null>(null);
 
   // Multi-credentials support
   const [selectedIntegrationId, setSelectedIntegrationId] = useState<string>('');
@@ -155,6 +158,7 @@ export const GitPage: React.FC = () => {
   const [triggerBranch, setTriggerBranch] = useState('main');
   const [triggerEnv, setTriggerEnv] = useState('dev');
   const [isTriggering, setIsTriggering] = useState(false);
+  const [triggerReason, setTriggerReason] = useState('');
 
   // ArgoCD sync state
   const [isArgoSyncing, setIsArgoSyncing] = useState(false);
@@ -329,10 +333,14 @@ export const GitPage: React.FC = () => {
       const res = await gitApi.triggerPipeline(
         intId,
         selectedRepo.id || selectedRepo.name,
-        triggerBranch
+        triggerBranch,
+        triggerReason.trim()
       );
 
-      if (res && res.pipeline) {
+      if (res.approvalRequired) {
+        toast.info(res.message);
+        setApprovalMsg(res.message);
+      } else if (res.pipeline) {
         setPipelines([res.pipeline, ...pipelines]);
         setSuccessMsg(`Pipeline #${res.pipeline.id} launched successfully on '${triggerBranch}'!`);
       } else {
@@ -340,6 +348,7 @@ export const GitPage: React.FC = () => {
       }
       setTimeout(() => setSuccessMsg(null), 5000);
       setIsTriggerModalOpen(false);
+      setTriggerReason('');
     } catch (err: any) {
       setErrorMsg(formatApiError(err, `Failed to launch pipeline on '${triggerBranch}'.`));
       setIsTriggerModalOpen(false);
@@ -355,9 +364,14 @@ export const GitPage: React.FC = () => {
     setIsArgoSyncing(true);
     setErrorMsg(null);
     try {
-      await argoApi.syncApp(selectedRepo.name);
-      setSuccessMsg(`ArgoCD successfully initiated synchronization for '${selectedRepo.name}' on Minikube!`);
-      setTimeout(() => setSuccessMsg(null), 5000);
+      const res = await argoApi.syncApp(selectedRepo.name);
+      if (res.approvalRequired) {
+        toast.info(res.message);
+        setApprovalMsg(res.message);
+      } else {
+        setSuccessMsg(`ArgoCD successfully initiated synchronization for '${selectedRepo.name}' on Minikube!`);
+        setTimeout(() => setSuccessMsg(null), 5000);
+      }
     } catch (err: any) {
       setErrorMsg(formatApiError(err, `ArgoCD synchronization failed for '${selectedRepo.name}'.`));
     } finally {
@@ -564,6 +578,8 @@ export const GitPage: React.FC = () => {
           </button>
         </div>
       )}
+
+      {approvalMsg && <ApprovalRequestedBanner message={approvalMsg} onDismiss={() => setApprovalMsg(null)} />}
 
       {/* Error Notification Alert Banner */}
       {errorMsg && (
@@ -1684,6 +1700,8 @@ export const GitPage: React.FC = () => {
                   This triggers the live GitLab pipeline for <code>{selectedRepo.name}</code> on branch <code>{triggerBranch}</code>.
                 </p>
               </div>
+
+              <ReasonField id="trigger-reason" value={triggerReason} onChange={setTriggerReason} hint="If this branch deploys an environment that needs approval, the run goes to the approvers first." />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">

@@ -101,6 +101,13 @@ const deploysTo = async (repoPath: string, branch: string) => {
   return null;
 };
 
+// Merge request details for the approval gate (target branch decides the environment).
+export const mergeRequestInfo = async (req: AuthRequest, iid: number) => {
+  const { gl, repoPath } = await client(req);
+  const { data } = await gl.get(`/merge_requests/${iid}`);
+  return { repoPath, title: data.title as string, source: data.source_branch as string, target: data.target_branch as string, webUrl: data.web_url as string, sha: String(data.sha || '').slice(0, 8) };
+};
+
 // ---------------------------------------------------------------- read
 
 export const compareBranches = async (req: AuthRequest, res: Response): Promise<void> => {

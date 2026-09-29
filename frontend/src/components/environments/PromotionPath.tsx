@@ -1,6 +1,7 @@
 import React from 'react';
-import { ArrowRight, ExternalLink, GitBranch, GitMerge, GitPullRequest, Loader2, Rocket, RotateCw } from 'lucide-react';
+import { ArrowRight, Clock, ExternalLink, GitBranch, GitMerge, GitPullRequest, Loader2, Rocket, RotateCw } from 'lucide-react';
 import { EnvironmentView, PromotionState, PromotionView } from '../../api/environmentApi';
+import { ApprovalRequiredBadge, PendingApprovalStrip } from './ApprovalNotice';
 
 const STATE: Record<PromotionState, { label: string; pill: string }> = {
   'up-to-date': { label: 'Up to date', pill: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -10,7 +11,7 @@ const STATE: Record<PromotionState, { label: string; pill: string }> = {
   diverged: { label: 'Diverged', pill: 'bg-rose-50 text-rose-700 border-rose-200' },
   publishing: { label: 'Building', pill: 'bg-sky-50 text-sky-700 border-sky-200' },
   syncing: { label: 'Deploying', pill: 'bg-sky-50 text-sky-700 border-sky-200' },
-  'needs-sync': { label: 'Needs approval', pill: 'bg-violet-50 text-violet-700 border-violet-200' },
+  'needs-sync': { label: 'Needs sync', pill: 'bg-violet-50 text-violet-700 border-violet-200' },
   failed: { label: 'Failed', pill: 'bg-rose-50 text-rose-700 border-rose-200' },
   'rolled-back': { label: 'Rolled back', pill: 'bg-amber-50 text-amber-800 border-amber-200' },
   unavailable: { label: 'Not available', pill: 'bg-slate-100 text-slate-600 border-slate-200' },
@@ -43,6 +44,9 @@ const PromotionTile: React.FC<PromotionTileProps> = ({ promotion, target, canMan
   const meta = STATE[promotion.state];
   const action = actionFor(promotion);
   const busy = promotion.state === 'publishing' || promotion.state === 'syncing';
+  // One request per environment: while it waits or runs, the actions into it stay disabled.
+  const awaiting = target?.pendingApproval;
+  const awaitingLabel = awaiting?.status === 'EXECUTING' ? 'Running' : 'Requested';
   const showCommits = promotion.commits && promotion.commits.length > 0 && ['ready', 'review', 'blocked', 'diverged'].includes(promotion.state);
 
   return (
@@ -56,6 +60,11 @@ const PromotionTile: React.FC<PromotionTileProps> = ({ promotion, target, canMan
           {meta.label}
         </span>
       </div>
+      {target?.requiresApproval && (
+        <div>
+          <ApprovalRequiredBadge />
+        </div>
+      )}
 
       <p className="text-[11px] leading-snug text-slate-600">{promotion.message}</p>
 
@@ -69,6 +78,8 @@ const PromotionTile: React.FC<PromotionTileProps> = ({ promotion, target, canMan
           {(promotion.aheadBy || 0) > 3 && <li className="text-[10px] text-slate-500">+{(promotion.aheadBy || 0) - 3} more</li>}
         </ul>
       )}
+
+      {awaiting && <PendingApprovalStrip pending={awaiting} />}
 
       <div className="flex items-center justify-between gap-2 mt-auto pt-1">
         <span className="min-w-0">
@@ -87,18 +98,22 @@ const PromotionTile: React.FC<PromotionTileProps> = ({ promotion, target, canMan
           <button
             type="button"
             onClick={() => onAction(promotion)}
-            className="h-7 px-2.5 inline-flex items-center gap-1 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-semibold cursor-pointer whitespace-nowrap"
+            disabled={Boolean(awaiting)}
+            title={awaiting ? `Waiting on request: ${awaiting.summary}` : undefined}
+            className="h-7 px-2.5 inline-flex items-center gap-1 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-semibold cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {action.icon} {action.label}
+            {awaiting ? <Clock size={13} aria-hidden /> : action.icon} {awaiting ? awaitingLabel : action.label}
           </button>
         )}
         {canManage && promotion.state === 'needs-sync' && target && (
           <button
             type="button"
             onClick={() => onSync(target)}
-            className="h-7 px-2.5 inline-flex items-center gap-1 rounded-md bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-semibold cursor-pointer whitespace-nowrap"
+            disabled={Boolean(awaiting)}
+            title={awaiting ? `Waiting on request: ${awaiting.summary}` : undefined}
+            className="h-7 px-2.5 inline-flex items-center gap-1 rounded-md bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-semibold cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RotateCw size={13} aria-hidden /> Sync {promotion.to}
+            {awaiting ? <Clock size={13} aria-hidden /> : <RotateCw size={13} aria-hidden />} {awaiting ? awaitingLabel : `Sync ${promotion.to}`}
           </button>
         )}
       </div>

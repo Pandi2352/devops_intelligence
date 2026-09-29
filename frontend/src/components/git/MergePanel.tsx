@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   ArrowRight,
   CheckCircle2,
+  Clock,
   ChevronDown,
   ChevronRight,
   ExternalLink,
@@ -26,6 +27,7 @@ import { getApiErrorMessage } from '../../api/client';
 import { BranchComparison, MergeRequestInfo, MergeResult, PipelineRef, gitApi } from '../../api/gitApi';
 import { GitBranchInfo, GitRepo } from '../../types';
 import { formatRelativeTime } from '../../utils/format';
+import { ApprovalRequestedBanner, ReasonField } from '../environments/ApprovalNotice';
 
 interface MergePanelProps {
   integrationId: string;
@@ -87,6 +89,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
   const [confirm, setConfirm] = useState<{ iid?: number; source: string; target: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [result, setResult] = useState<MergeResult | null>(null);
+  const [reason, setReason] = useState('');
+  // A gated pipeline run went to the approvers instead of starting.
+  const [runRequested, setRunRequested] = useState<string | null>(null);
   const [targetPipeline, setTargetPipeline] = useState<PipelineRef | null>(null);
   const [openMrs, setOpenMrs] = useState<MergeRequestInfo[]>([]);
   // The parent re-renders on its own refresh cycle; keep the latest callback without restarting timers.
@@ -183,11 +188,13 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
         iid = (await gitApi.createMergeRequest(integrationId, repoId, { source: confirm.source, target: confirm.target, title: title.trim() || undefined, squash, removeSourceBranch: removeSource }))
           .mergeRequest.iid;
       }
-      const r = await gitApi.mergeMergeRequest(integrationId, repoId, iid, { squash, removeSourceBranch: removeSource, whenPipelineSucceeds });
+      const r = await gitApi.mergeMergeRequest(integrationId, repoId, iid, { squash, removeSourceBranch: removeSource, whenPipelineSucceeds, reason: reason.trim() || undefined });
       setResult(r);
       setTargetPipeline(r.targetPipeline || null);
-      toast.success(r.message);
+      if (r.approvalRequired) toast.info(r.message || 'Merge requested: waiting for approval');
+      else toast.success(r.message);
       setConfirm(null);
+      setReason('');
       changedRef.current();
       await Promise.all([loadCompare(), loadMrs()]);
     } catch (err) {
@@ -202,6 +209,11 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
     setBusy('run');
     try {
       const r = await gitApi.triggerPipeline(integrationId, repoId, ref);
+      if (r.approvalRequired) {
+        toast.info(r.message);
+        setRunRequested(r.message);
+        return;
+      }
       toast.success(r.message);
       const p = await gitApi.branchPipeline(integrationId, repoId, ref);
       setTargetPipeline(p);
@@ -416,22 +428,37 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
           </div>
         )}
 
-        {result && (
+        {result?.approvalRequired && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1" role="status">
+            <div className="flex items-center gap-1.5 font-semibold">
+              <Clock size={14} /> Merge requested: waiting for approval
+            </div>
+            <p>
+              {result.message}{' '}
+              <Link to="/approvals" className="font-semibold underline">
+                View request
+              </Link>
+            </p>
+          </div>
+        )}
+        {runRequested && <ApprovalRequestedBanner message={runRequested} onDismiss={() => setRunRequested(null)} />}
+
+        {result && !result.approvalRequired && result.mergeRequest && (
           <div className={`rounded-md border p-3 text-xs space-y-2 ${result.merged ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-sky-200 bg-sky-50 text-sky-900'}`}>
             <div className="flex items-center gap-1.5 font-semibold">
               <CheckCircle2 size={14} /> {result.message}
-              {result.mergeRequest.mergeCommitSha && <span className="font-mono font-normal">({result.mergeRequest.mergeCommitSha})</span>}
+              {result.mergeRequest?.mergeCommitSha && <span className="font-mono font-normal">({result.mergeRequest.mergeCommitSha})</span>}
             </div>
             {result.merged && (
               <div className="flex flex-wrap items-center gap-2">
-                <span>Pipeline on {result.mergeRequest.target}:</span>
+                <span>Pipeline on {result.mergeRequest?.target}:</span>
                 {result.targetPipelineStarted ? (
                   <PipelinePill pipeline={targetPipeline} />
                 ) : (
                   <span>no pipeline started automatically (the CI rules may not run for this branch).</span>
                 )}
                 {canManage && (
-                  <Button size="sm" variant="secondary" leftIcon={<Play size={11} />} onClick={() => runPipeline(result.mergeRequest.target)} isLoading={busy === 'run'} disabled={Boolean(busy)}>
+                  <Button size="sm" variant="secondary" leftIcon={<Play size={11} />} onClick={() => runPipeline(result.mergeRequest!.target)} isLoading={busy === 'run'} disabled={Boolean(busy)}>
                     Run pipeline
                   </Button>
                 )}
@@ -524,6 +551,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
                 This deploys the <strong>{compare.deploysTo.environment}</strong> environment of {compare.deploysTo.project}.
               </p>
             )}
+            <ReasonField id="merge-reason" value={reason} onChange={setReason} hint="If the target branch deploys an environment that needs approval, the merge goes to the approvers first." />
             {actionError && <p className="text-rose-700">{actionError}</p>}
           </div>
         }
@@ -531,8 +559,10 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
         isLoading={busy === 'merge'}
         onConfirm={merge}
         onCancel={() => {
+          if (busy === 'merge') return;
           setConfirm(null);
           setActionError(null);
+          setReason('');
         }}
       />
     </div>

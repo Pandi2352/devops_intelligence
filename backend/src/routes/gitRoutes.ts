@@ -21,6 +21,7 @@ import {
 } from '../controllers/gitController.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { requireRepo } from '../services/gitAccess.js';
+import { approvalGate, registerApprovalHandler } from '../services/approvals.js';
 import { DEPLOY, VIEW } from '../services/access.js';
 import {
   branchPipeline,
@@ -54,13 +55,16 @@ router.get('/:id/repos/:repoId/languages', authenticate, requireRepo(VIEW), fetc
 router.get('/:id/repos/:repoId/pipelines', authenticate, requireRepo(VIEW), fetchPipelines);
 router.get('/:id/repos/:repoId/jobs/:jobId/trace', authenticate, requireRepo(VIEW), fetchJobTrace);
 router.get('/:id/repos/:repoId/jobs/:jobId/artifacts', authenticate, requireRepo(VIEW), fetchJobArtifacts);
-router.post('/:id/repos/:repoId/pipelines', authenticate, requireRepo(DEPLOY, (req) => String(req.body?.ref || 'main')), triggerPipeline);
+router.post('/:id/repos/:repoId/pipelines', authenticate, requireRepo(DEPLOY, (req) => String(req.body?.ref || 'main')), approvalGate('git.pipeline'), triggerPipeline);
 router.get('/:id/repos/:repoId/compare', authenticate, requireRepo(VIEW), compareBranches);
 router.get('/:id/repos/:repoId/branch-pipeline', authenticate, requireRepo(VIEW), branchPipeline);
 router.get('/:id/repos/:repoId/merge-requests', authenticate, requireRepo(VIEW), listMergeRequests);
 router.post('/:id/repos/:repoId/merge-requests', authenticate, requireRepo(DEPLOY, (req) => String(req.body?.target || '')), createMergeRequest);
-router.post('/:id/repos/:repoId/merge-requests/:iid/merge', authenticate, requireRepo(DEPLOY, () => '*'), mergeMergeRequest);
+router.post('/:id/repos/:repoId/merge-requests/:iid/merge', authenticate, requireRepo(DEPLOY, () => '*'), approvalGate('git.merge'), mergeMergeRequest);
 router.post('/:id/repos/:repoId/merge-requests/:iid/rebase', authenticate, requireRepo(DEPLOY, () => '*'), rebaseMergeRequest);
 router.post('/:id/repos/:repoId/merge-requests/:iid/close', authenticate, requireRepo(DEPLOY, () => '*'), closeMergeRequest);
+
+registerApprovalHandler('git.pipeline', triggerPipeline);
+registerApprovalHandler('git.merge', mergeMergeRequest);
 
 export default router;

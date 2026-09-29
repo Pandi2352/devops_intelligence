@@ -7,6 +7,7 @@ import { describeRequestError } from '../utils/httpError.js';
 import { isValidId } from '../utils/validation.js';
 import { IUser } from '../models/User.js';
 import { envLevel, projectLevel } from '../services/access.js';
+import { requiresApproval } from '../services/approvals.js';
 
 // One plain-language state per environment, derived from ArgoCD sync + health + operation.
 export type EnvState = 'healthy' | 'deploying' | 'waiting' | 'failing' | 'missing' | 'unknown';
@@ -28,6 +29,8 @@ export interface EnvOverview {
   lastDeployAt: string | null;
   lastDeployBy: string;
   history: { at: string; revision: string; by: string }[];
+  requiresApproval?: boolean;
+  approvalIsDefault?: boolean;
 }
 
 const rank = (name: string) => {
@@ -109,7 +112,11 @@ const summarize = (p: IProject, apps: Map<string, any> | null, user?: IUser) => 
   const environments = [...(p.argoApps || [])]
     .filter((a) => envLevel(user, p.name, a.environment || a.branch || a.appName) >= 1)
     .sort((x, y) => rank(x.environment || x.branch || '') - rank(y.environment || y.branch || ''))
-    .map((a) => envOverview(a, apps?.get(a.appName)));
+    .map((a) => ({
+      ...envOverview(a, apps?.get(a.appName)),
+      requiresApproval: requiresApproval(p, a.environment || a.branch || a.appName),
+      approvalIsDefault: typeof a.requiresApproval !== 'boolean',
+    }));
   const hasApp = p.gitLabRepos.some((r) => r.role === 'app') || p.gitLabRepos.some((r) => r.role !== 'gitops');
   // Older projects have no repo roles; like the provisioner, fall back to the ArgoCD apps' source repo.
   const hasGitops =
