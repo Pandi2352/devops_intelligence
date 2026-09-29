@@ -1,6 +1,7 @@
+import { Link } from 'react-router-dom';
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, HelpCircle, ChevronDown, Bell } from 'lucide-react';
+import { LogOut, HelpCircle, ChevronDown, Bell, KeyRound } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -53,10 +54,19 @@ export const Navbar: React.FC = () => {
               </div>
             </div>
 
+            <Link
+              to="/account/password"
+              className="p-1.5 rounded-md text-slate-400 hover:text-sky-700 hover:bg-sky-50 border border-slate-200 transition-colors"
+              title="Change password"
+              aria-label="Change password"
+            >
+              <KeyRound size={14} />
+            </Link>
             <button
-              onClick={logout}
+              onClick={() => logout()}
               className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
-              title="Sign Out"
+              title="Sign out"
+              aria-label="Sign out"
             >
               <LogOut size={14} />
             </button>

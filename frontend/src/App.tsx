@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Layout } from './components/layout/Layout';
@@ -15,6 +15,7 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { UserPermissionsPage } from './pages/UserPermissionsPage';
 import { ResourceBrowserPage } from './pages/ResourceBrowserPage';
 import { LoginPage } from './pages/LoginPage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { DocsPage } from './pages/DocsPage';
 import { UserGuidePage } from './pages/UserGuidePage';
 import { EnvironmentsPage } from './pages/EnvironmentsPage';
@@ -24,20 +25,25 @@ import { LoadingSpinner } from './components/common/LoadingSpinner';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, token, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
-        <LoadingSpinner message="Authenticating session..." />
+        <LoadingSpinner message="Checking your session..." />
       </div>
     );
   }
-
-  if (!token && !user) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!token || !user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  // Accounts on a published or admin-set password must pick their own before anything else.
+  if (user.mustChangePassword && location.pathname !== '/account/password') return <Navigate to="/account/password" replace />;
   return <>{children}</>;
+};
+
+// Pages only DevOps admins use (connectors, users). The API enforces the same.
+const ManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isManager } = useAuth();
+  return isManager ? <>{children}</> : <Navigate to="/" replace />;
 };
 
 export function App() {
@@ -70,11 +76,12 @@ export function App() {
             <Route path="applications" element={<Navigate to="/environments" replace />} />
             <Route path="argocd" element={<ArgoPage />} />
             <Route path="git" element={<GitPage />} />
-            <Route path="connectors" element={<ConnectorsPage />} />
+            <Route path="connectors" element={<ManagerRoute><ConnectorsPage /></ManagerRoute>} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />
-            <Route path="authorization/users" element={<UserPermissionsPage />} />
-            <Route path="rbac" element={<RbacPage />} />
+            <Route path="authorization/users" element={<ManagerRoute><UserPermissionsPage /></ManagerRoute>} />
+            <Route path="rbac" element={<ManagerRoute><RbacPage /></ManagerRoute>} />
+            <Route path="account/password" element={<ChangePasswordPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

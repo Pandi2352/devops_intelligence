@@ -6,7 +6,7 @@ import { Card } from '../components/common/Card';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Shield } from 'lucide-react';
 import { authApi } from '../api/authApi';
-import { useAuth, DUMMY_USERS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { User, UserRole } from '../types';
 
 export const RbacPage: React.FC = () => {
@@ -18,14 +18,9 @@ export const RbacPage: React.FC = () => {
   const loadUsers = async () => {
     try {
       const data = await authApi.getUsers();
-      if (data && data.length > 0) {
-        setUsers(data);
-      } else {
-        // Fallback to dummy users list
-        setUsers(Object.values(DUMMY_USERS));
-      }
+      setUsers(data || []);
     } catch {
-      setUsers(Object.values(DUMMY_USERS));
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }

@@ -9,7 +9,10 @@ const getKey = (): Buffer => {
   if (!cachedKey) {
     const secret = process.env.CREDENTIALS_SECRET || process.env.JWT_SECRET || 'kubeorbit-secret';
     if (!process.env.CREDENTIALS_SECRET) {
-      console.warn('[Secrets] CREDENTIALS_SECRET is not set; deriving the credential encryption key from JWT_SECRET.');
+      console.warn(
+        '[Secrets] CREDENTIALS_SECRET is not set; saved credentials are encrypted with a key derived from JWT_SECRET. ' +
+          'Changing JWT_SECRET would make them unreadable: set CREDENTIALS_SECRET and migrate with dist/scripts/rotateCredentialsKey.js.'
+      );
     }
     cachedKey = crypto.createHash('sha256').update(secret).digest();
   }

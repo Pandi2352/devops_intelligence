@@ -5,6 +5,7 @@ import { Octokit } from '@octokit/rest';
 import axios from 'axios';
 import { maskSecret } from '../utils/secrets.js';
 import { describeRequestError } from '../utils/httpError.js';
+import { buildScope } from '../services/access.js';
 import { cleanString, isHttpUrl, isValidId, nameMatch, normalizeUrl } from '../utils/validation.js';
 import { listTemplates, readTemplateFiles } from '../services/workspaceTemplates.js';
 import { readZip } from '../utils/zip.js';
@@ -329,7 +330,9 @@ export const fetchRepositories = async (req: AuthRequest, res: Response): Promis
       repos = glProjects.map(mapGitLabProject);
     }
 
-    res.json({ provider: integration.provider, repos });
+    const scope = await buildScope(req.user);
+    const visible = scope ? repos.filter((r) => scope.repoPaths.has(String(r.fullName || '').toLowerCase())) : repos;
+    res.json({ provider: integration.provider, repos: visible });
   } catch (err: any) {
     res.status(500).json({ message: describeRequestError(err, 'Git provider'), error: err.message });
   }

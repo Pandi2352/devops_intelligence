@@ -22,9 +22,11 @@ import {
   LineChart,
 } from 'lucide-react';
 import { GitLabLogo } from '../connectors/ConnectorLogos';
+import { useAuth } from '../../context/AuthContext';
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
+  const { isManager } = useAuth();
 
   // Collapsible state for single sidebar menus and submenus
   const [isGlobalConfigOpen, setIsGlobalConfigOpen] = useState<boolean>(true);
@@ -307,6 +309,9 @@ export const Sidebar: React.FC = () => {
                 <span className="text-[10px] text-slate-400 font-mono">Workspace</span>
               </NavLink>
 
+              {/* Connectors and Authorization are for DevOps admins only (the routes and API enforce it too). */}
+              {isManager && (
+              <>
               {/* 3. Connectors */}
               <NavLink
                 to="/connectors"
@@ -379,6 +384,8 @@ export const Sidebar: React.FC = () => {
                   </div>
                 )}
               </div>
+              </>
+              )}
             </div>
           )}
         </div>

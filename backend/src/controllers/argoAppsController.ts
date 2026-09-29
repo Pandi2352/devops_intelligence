@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { buildScope } from '../services/access.js';
 import { dumpYaml } from '@kubernetes/client-node';
 import { AuthRequest } from '../middleware/auth.js';
 import { Project } from '../models/Project.js';
@@ -78,7 +79,8 @@ const validName = (req: AuthRequest, res: Response) => {
 export const listApps = async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const [{ data, serverUrl }, index] = await Promise.all([argoRequest('get', '/api/v1/applications'), projectIndex()]);
-    const apps = (data.items || []).map((a: any) => summarize(a, index));
+    const scope = await buildScope(_req.user);
+    const apps = (data.items || []).filter((a: any) => !scope || scope.apps.has(a.metadata.name)).map((a: any) => summarize(a, index));
     res.json({ serverUrl, apps });
   } catch (err: any) {
     handle(res, err);

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Project, IProject, IGitRepoMapping } from '../models/Project.js';
 import { cleanString, isHttpUrl, isValidId } from '../utils/validation.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { projectLevel } from '../services/access.js';
 
 // Seed demo projects matching Devtron screenshot (argo-apps, devtron-demo) if none exist
 export const seedProjectsIfNone = async (): Promise<void> => {
@@ -75,9 +76,9 @@ export const seedProjectsIfNone = async (): Promise<void> => {
   }
 };
 
-export const getProjects = async (_req: Request, res: Response): Promise<void> => {
+export const getProjects = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const projects = await Project.find().sort({ createdAt: -1 });
+    const projects = (await Project.find().sort({ createdAt: -1 })).filter((p) => projectLevel(req.user, p.name) >= 1);
     res.json({ projects, total: projects.length });
   } catch (err: any) {
     res.status(500).json({ message: 'Failed to fetch projects', error: err.message });

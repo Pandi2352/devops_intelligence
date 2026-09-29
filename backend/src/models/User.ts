@@ -31,6 +31,9 @@ export interface IUser extends Document {
   k8sResourcePermissions: IK8sResourcePermission[];
   isActive: boolean;
   lastLogin?: Date;
+  tokenVersion: number; // bumped on password/role/active changes: older tokens stop working
+  mustChangePassword: boolean;
+  passwordChangedAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -71,6 +74,9 @@ const UserSchema = new Schema<IUser>(
     ],
     isActive: { type: Boolean, default: true },
     lastLogin: { type: Date },
+    tokenVersion: { type: Number, default: 0 },
+    mustChangePassword: { type: Boolean, default: false },
+    passwordChangedAt: { type: Date },
   },
   { timestamps: true }
 );

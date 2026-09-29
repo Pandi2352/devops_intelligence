@@ -75,13 +75,17 @@ const StatTile: React.FC<StatTileProps> = ({ label, value, tone, active, onClick
 );
 
 export const ArgoPage: React.FC = () => {
-  const { hasRole } = useAuth();
+  const { isManager, levelOn } = useAuth();
   const toast = useToast();
-  const canManage = hasRole(['superadmin', 'devops']);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [integration, setIntegration] = useState<ArgoIntegration | null>(null);
   const [apps, setApps] = useState<ArgoAppSummary[] | null>(null);
+  // Apps mapped to a project environment: build-and-deploy there allows sync and rollback.
+  const canDeployApp = (name: string) => {
+    const a = (apps || []).find((x) => x.name === name);
+    return isManager || Boolean(a?.kubeorbit && levelOn(a.kubeorbit.project, a.kubeorbit.environment) >= 2);
+  };
   const [serverUrl, setServerUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -334,7 +338,7 @@ export const ArgoPage: React.FC = () => {
           >
             <ExternalLink size={13} />
           </a>
-          {canManage && (
+          {canDeployApp(a.name) && (
             <button
               type="button"
               onClick={() => setSyncTarget(a)}
@@ -526,7 +530,7 @@ export const ArgoPage: React.FC = () => {
       {detailsName && (
         <AppDetailsModal
           name={detailsName}
-          canManage={canManage}
+          canManage={canDeployApp(detailsName)}
           onClose={() => openDetails(null)}
           onSync={(app) => setSyncTarget(app)}
           onChanged={() => loadApps(true)}

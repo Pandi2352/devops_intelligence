@@ -5,6 +5,7 @@ import { Project } from '../models/Project.js';
 import { findIntegration, resolveProjectId } from './gitController.js';
 import { describeRequestError } from '../utils/httpError.js';
 import { cleanString } from '../utils/validation.js';
+import { repoLevel } from '../services/gitAccess.js';
 
 // Merge one branch into another through a GitLab merge request, then follow the target's pipeline.
 
@@ -203,6 +204,10 @@ export const mergeMergeRequest = async (req: AuthRequest, res: Response): Promis
       const status = mr.detailed_merge_status || mr.merge_status;
       if (!['checking', 'unchecked', 'preparing', 'approvals_syncing', 'cannot_be_merged_recheck'].includes(status)) break;
       await sleep(1500);
+    }
+    if ((await repoLevel(req, String(req.params.id), String(req.params.repoId), mr.target_branch)) < 2) {
+      res.status(403).json({ message: `You need build and deploy access on ${mr.target_branch} to merge into it.` });
+      return;
     }
     const status = mr.detailed_merge_status || mr.merge_status;
     const pipelineRunning = ['running', 'pending', 'created', 'waiting_for_resource', 'preparing'].includes(mr.head_pipeline?.status);

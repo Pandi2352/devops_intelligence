@@ -60,10 +60,11 @@ export const ProjectDetailPage: React.FC = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { hasRole } = useAuth();
-  const canManage = hasRole(['superadmin', 'devops']);
+  const { levelOn } = useAuth();
 
   const [project, setProject] = useState<Project | null>(null);
+  // Project admins (and DevOps) change the project and its environments.
+  const canManage = project ? levelOn(project.name) >= 3 : false;
   const [setup, setSetup] = useState<ProjectSetup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChecking, setIsChecking] = useState(false);

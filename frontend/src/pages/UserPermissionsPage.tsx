@@ -26,19 +26,7 @@ const PERMISSION_GROUPS = [
   { value: 'viewer', label: 'Viewer Group', sublabel: 'Read-only access to metrics & logs' },
 ];
 
-const ENVIRONMENT_OPTIONS = [
-  { value: 'minikube / argo-apps', label: 'minikube / argo-apps' },
-  { value: 'minikube / default', label: 'minikube / default' },
-  { value: 'minikube / devtron-demo', label: 'minikube / devtron-demo' },
-  { value: 'all', label: 'All Environments' },
-];
-
-const APPLICATION_OPTIONS = [
-  { value: 'all', label: 'All applications' },
-  { value: 'argo-apps-staging', label: 'argo-apps-staging' },
-  { value: 'devtron-demo-rollout', label: 'devtron-demo-rollout' },
-  { value: 'dms-payment-backend', label: 'dms-payment-backend' },
-];
+const STANDARD_ENVIRONMENTS = ['dev', 'qa', 'staging', 'uat', 'prod'];
 
 const PERMISSION_OPTIONS: { value: DirectPermission['permission']; label: string }[] = [
   { value: 'View only', label: 'View only' },
@@ -104,7 +92,10 @@ interface UserItem {
 export const UserPermissionsPage: React.FC = () => {
   const { token, user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserItem[]>([]);
-  const [projectsList, setProjectsList] = useState<string[]>(['argo-apps', 'devtron-demo']);
+  const [projectsList, setProjectsList] = useState<string[]>([]);
+  // project -> its environments and ArgoCD apps, for the permission dropdowns
+  const [projectEnvs, setProjectEnvs] = useState<Record<string, { envs: string[]; apps: string[] }>>({});
+  const [createdInfo, setCreatedInfo] = useState<{ email: string; temporaryPassword?: string; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [viewMode, setViewMode] = useState<'list' | 'add'>('list');
@@ -152,62 +143,22 @@ export const UserPermissionsPage: React.FC = () => {
       if (usersRes.data?.users) {
         setUsers(usersRes.data.users);
       }
-      if (projRes.data?.projects?.length > 0) {
-        setProjectsList(projRes.data.projects.map((p: any) => p.name));
-      }
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      // Fallback data matching Devtron screenshot (admin, system, developer)
-      setUsers([
-        {
-          _id: 'usr-1',
-          name: 'admin',
-          email: 'admin@kubeorbit.local',
-          role: 'superadmin',
-          isSuperAdmin: true,
-          lastLogin: 'a few seconds ago',
-          directPermissions: [
+      const projects = (projRes.data?.projects || []) as { name: string; argoApps?: { environment?: string; branch?: string; appName: string }[] }[];
+      setProjectsList(projects.map((p) => p.name));
+      setProjectEnvs(
+        Object.fromEntries(
+          projects.map((p) => [
+            p.name,
             {
-              project: '*',
-              environment: 'all',
-              application: 'all',
-              permission: 'Admin',
+              envs: (p.argoApps || []).map((a) => a.environment || a.branch || a.appName),
+              apps: (p.argoApps || []).map((a) => a.appName),
             },
-          ],
-        },
-        {
-          _id: 'usr-2',
-          name: 'system',
-          email: 'system@kubeorbit.local',
-          role: 'devops',
-          isSuperAdmin: false,
-          lastLogin: 'Never',
-          directPermissions: [
-            {
-              project: 'argo-apps',
-              environment: 'minikube / argo-apps',
-              application: 'argo-apps-staging',
-              permission: 'Build and Deploy',
-            },
-          ],
-        },
-        {
-          _id: 'usr-3',
-          name: 'dev-alice',
-          email: 'alice@company.com',
-          role: 'developer',
-          isSuperAdmin: false,
-          lastLogin: '1 hour ago',
-          directPermissions: [
-            {
-              project: 'argo-apps',
-              environment: 'minikube / argo-apps',
-              application: 'argo-apps-staging',
-              permission: 'View only',
-            },
-          ],
-        },
-      ]);
+          ])
+        )
+      );
+    } catch (err: any) {
+      setUsers([]);
+      setErrorMessage(err?.response?.data?.message || 'Could not load users');
     } finally {
       setIsLoading(false);
     }
@@ -221,7 +172,7 @@ export const UserPermissionsPage: React.FC = () => {
     setDirectPermissions([
       ...directPermissions,
       {
-        project: projectsList[0] || 'argo-apps',
+        project: projectsList[0] || '*',
         environment: 'minikube / default',
         application: 'all',
         permission: 'View only',
@@ -291,9 +242,10 @@ export const UserPermissionsPage: React.FC = () => {
     };
 
     try {
-      await axios.post('/api/auth/users', payload, {
+      const res = await axios.post('/api/auth/users', payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      setCreatedInfo({ email: payload.email, temporaryPassword: res.data?.temporaryPassword, message: res.data?.message || 'User created' });
       setViewMode('list');
       resetAddUserForm();
       fetchUsersAndProjects();
@@ -323,7 +275,7 @@ export const UserPermissionsPage: React.FC = () => {
     setSelectedGroup('developer');
     setDirectPermissions([
       {
-        project: projectsList[0] || 'argo-apps',
+        project: projectsList[0] || '*',
         environment: 'minikube / argo-apps',
         application: 'all',
         permission: 'View only',
@@ -349,6 +301,28 @@ export const UserPermissionsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {createdInfo && (
+        <div className="p-3 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-900 text-xs space-y-1.5" role="status">
+          <div className="flex items-center justify-between gap-2">
+            <strong>{createdInfo.message}</strong>
+            <button type="button" onClick={() => setCreatedInfo(null)} className="text-emerald-800 hover:underline">
+              Dismiss
+            </button>
+          </div>
+          {createdInfo.temporaryPassword && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span>
+                Temporary password for <span className="font-mono">{createdInfo.email}</span>:
+              </span>
+              <code className="px-2 py-0.5 rounded bg-white border border-emerald-200 font-mono select-all">{createdInfo.temporaryPassword}</code>
+              <button type="button" onClick={() => navigator.clipboard?.writeText(createdInfo.temporaryPassword || '')} className="underline">
+                Copy
+              </button>
+              <span className="text-emerald-800">Shown once. They must change it at first sign-in.</span>
+            </div>
+          )}
+        </div>
+      )}
       {/* View Mode: List Users (Screenshot 3) */}
       {viewMode === 'list' && (
         <>
@@ -658,7 +632,13 @@ export const UserPermissionsPage: React.FC = () => {
                               mono
                               value={row.environment}
                               onChange={(v) => handleUpdateDirectPermission(idx, 'environment', v)}
-                              options={ENVIRONMENT_OPTIONS}
+                              options={[
+                                { value: 'all', label: 'All environments' },
+                                ...(row.project === '*'
+                                  ? STANDARD_ENVIRONMENTS
+                                  : projectEnvs[row.project]?.envs || []
+                                ).map((e) => ({ value: e, label: e })),
+                              ]}
                             />
                           </div>
 
@@ -669,7 +649,10 @@ export const UserPermissionsPage: React.FC = () => {
                               mono
                               value={row.application}
                               onChange={(v) => handleUpdateDirectPermission(idx, 'application', v)}
-                              options={APPLICATION_OPTIONS}
+                              options={[
+                                { value: 'all', label: 'All applications' },
+                                ...(projectEnvs[row.project]?.apps || []).map((a) => ({ value: a, label: a })),
+                              ]}
                             />
                           </div>
 

@@ -131,7 +131,7 @@ export const GitPage: React.FC = () => {
   const [selectedIntegrationId, setSelectedIntegrationId] = useState<string>('');
   const [isCreateRepoOpen, setIsCreateRepoOpen] = useState(false);
   const [isPushCodeOpen, setIsPushCodeOpen] = useState(false);
-  const { hasRole } = useAuth();
+  const { hasRole, canDeployAnywhere } = useAuth();
   const toast = useToast();
   const canManageRepos = hasRole(['superadmin', 'devops']);
   const activeIntegration = integrations.find((g) => g._id === selectedIntegrationId) || integrations[0];
@@ -1282,7 +1282,7 @@ export const GitPage: React.FC = () => {
                   integrationId={selectedIntegrationId || integrations[0]?._id || ''}
                   repo={selectedRepo}
                   branches={branches}
-                  canManage={canManageRepos}
+                  canManage={canDeployAnywhere}
                   onPipelinesChanged={() => loadRepoDetails(selectedRepo)}
                   onShowPipelines={() => setActiveTab('pipelines')}
                 />

@@ -7,6 +7,8 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 
 import { connectDB } from './config/db.js';
+import { userFromToken } from './middleware/auth.js';
+import { jwtSecret } from './utils/authSecrets.js';
 import { seedAdminIfNone } from './controllers/authController.js';
 import { seedProjectsIfNone } from './controllers/projectController.js';
 import { seedClustersIfNone } from './controllers/clusterController.js';
@@ -25,12 +27,29 @@ const app = express();
 const server = http.createServer(app);
 
 // Setup Socket.io for live cluster events, pod streaming, and sync logs
+// Browsers may call the API only from the DevOps Intelligence UI: FRONTEND_URL (comma-separated),
+// plus the local Vite ports while developing.
+const allowedOrigins = new Set(
+  [
+    ...(process.env.FRONTEND_URL || '').split(','),
+    ...(process.env.NODE_ENV === 'production' ? [] : ['5173', '5174', '5175'].flatMap((p) => [`http://localhost:${p}`, `http://127.0.0.1:${p}`])),
+  ]
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+);
+const corsOrigin = (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) =>
+  // Unknown origins get no CORS headers, so the browser blocks the response (no error page).
+  cb(null, !origin || allowedOrigins.has(origin));
+
 const io = new SocketIOServer(server, {
-  cors: {
-    origin: true, // Allow all origins dynamically
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: true,
-  },
+  cors: { origin: corsOrigin, methods: ['GET', 'POST'], credentials: true },
+});
+// Socket connections need a valid session too.
+io.use(async (socket, next) => {
+  const user = await userFromToken(String(socket.handshake.auth?.token || ''));
+  if (!user) return next(new Error('unauthorized'));
+  socket.data.user = { id: String(user._id), email: user.email };
+  next();
 });
 
 // Middleware
@@ -38,7 +57,7 @@ app.use(helmet({
   crossOriginResourcePolicy: false,
 }));
 app.use(cors({
-  origin: true, // Dynamically allow any requesting origin (localhost:5173, localhost:5175, etc.)
+  origin: corsOrigin,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
@@ -91,6 +110,7 @@ app.use((_req, res) => {
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
+  jwtSecret(); // fail fast (production) or warn (development) about the signing secret
   await connectDB();
   await seedAdminIfNone();
   await seedProjectsIfNone();

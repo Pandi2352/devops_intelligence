@@ -109,12 +109,12 @@ const PromotionTile: React.FC<PromotionTileProps> = ({ promotion, target, canMan
 interface PromotionPathProps {
   environments: EnvironmentView[];
   promotions: PromotionView[];
-  canManage: boolean;
+  canPromoteTo: (env: string) => boolean;
   onAction: (p: PromotionView) => void;
   onSync: (env: EnvironmentView) => void;
 }
 
-export const PromotionPath: React.FC<PromotionPathProps> = ({ environments, promotions, canManage, onAction, onSync }) => {
+export const PromotionPath: React.FC<PromotionPathProps> = ({ environments, promotions, canPromoteTo, onAction, onSync }) => {
   if (promotions.length === 0) return null;
   return (
     <section aria-labelledby="promotion-path-title" className="space-y-2">
@@ -127,7 +127,7 @@ export const PromotionPath: React.FC<PromotionPathProps> = ({ environments, prom
             key={`${p.from}-${p.to}`}
             promotion={p}
             target={environments.find((e) => e.key === p.to)}
-            canManage={canManage}
+            canManage={canPromoteTo(p.to)}
             onAction={onAction}
             onSync={onSync}
           />

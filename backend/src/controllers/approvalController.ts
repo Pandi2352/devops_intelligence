@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { canApprove, isManager, projectLevel } from '../services/access.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { ApprovalRequest, ApprovalAction, ApprovalStatus } from '../models/ApprovalRequest.js';
 
@@ -9,7 +10,9 @@ export const listApprovals = async (req: AuthRequest, res: Response): Promise<vo
     if (status) filter.status = status;
     if (project) filter.projectName = project;
 
-    const approvals = await ApprovalRequest.find(filter).sort({ createdAt: -1 });
+    const all = await ApprovalRequest.find(filter).sort({ createdAt: -1 });
+    // Managers see everything; others see what they asked for and what they may approve.
+    const approvals = isManager(req.user) ? all : all.filter((a) => a.requestedBy === req.user?.email || canApprove(req.user, a.projectName));
     res.json({ approvals });
   } catch (err: any) {
     res.status(500).json({ message: 'Failed to fetch approval requests', error: err.message });
@@ -21,6 +24,10 @@ export const createApprovalRequest = async (req: AuthRequest, res: Response): Pr
     const { projectName, action, resource, reason, details } = req.body;
     if (!projectName || !action || !resource) {
       res.status(400).json({ message: 'Project name, action, and resource are required' });
+      return;
+    }
+    if (projectLevel(req.user, String(projectName)) < 1) {
+      res.status(403).json({ message: `You have no access to project ${projectName}` });
       return;
     }
 
@@ -58,6 +65,14 @@ export const reviewApprovalRequest = async (req: AuthRequest, res: Response): Pr
     const request = await ApprovalRequest.findById(id);
     if (!request) {
       res.status(404).json({ message: 'Approval request not found' });
+      return;
+    }
+    if (!canApprove(req.user, request.projectName)) {
+      res.status(403).json({ message: `Only a Manager Approver or admin of ${request.projectName} can review this request` });
+      return;
+    }
+    if (request.requestedBy === req.user?.email) {
+      res.status(403).json({ message: 'You cannot approve your own request' });
       return;
     }
 

@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { dumpYaml } from '@kubernetes/client-node';
+import { buildScope, envLevel, envNameOf, isManager, projectLevel } from '../services/access.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { Cluster } from '../models/Cluster.js';
 import { Project } from '../models/Project.js';
@@ -47,7 +48,7 @@ export const getScopes = async (_req: AuthRequest, res: Response): Promise<void>
   try {
     const [clusters, projects, connectors] = await Promise.all([
       Cluster.find({}, { name: 1, isDefault: 1, status: 1 }).sort({ isDefault: -1, name: 1 }),
-      Project.find({}, { name: 1, argoApps: 1, kubernetesMappings: 1 }).sort({ name: 1 }),
+      Project.find({}, { name: 1, argoApps: 1, kubernetesMappings: 1 }).sort({ name: 1 }).then((all) => all.filter((p) => projectLevel(_req.user, p.name) >= 1)),
       ObservabilityIntegration.find({ isActive: true }, { kind: 1, name: 1, publicUrl: 1, status: 1 }),
     ]);
     res.json({
@@ -57,7 +58,7 @@ export const getScopes = async (_req: AuthRequest, res: Response): Promise<void>
         name: p.name,
         cluster: p.kubernetesMappings?.[0]?.clusterName || '',
         environments: (p.argoApps || [])
-          .filter((a) => a.targetNamespace)
+          .filter((a) => a.targetNamespace && envLevel(_req.user, p.name, envNameOf(a)) >= 1)
           .map((a) => ({ name: a.environment || a.branch || a.appName, namespace: a.targetNamespace, appName: a.appName })),
       })),
       sources: {
@@ -76,9 +77,10 @@ export const getNamespaces = async (req: AuthRequest, res: Response): Promise<vo
     const cluster = await pickCluster(req.query.cluster);
     const { core } = await resolveClients(cluster);
     const [list, owners] = await Promise.all([core.listNamespace(), namespaceOwners()]);
+    const scope = await buildScope(req.user);
     res.json({
       cluster,
-      namespaces: list.items.map((n) => {
+      namespaces: list.items.filter((n) => !scope || scope.namespaces.has(n.metadata?.name || '')).map((n) => {
         const name = n.metadata?.name || '';
         const owner = owners.get(name);
         return { name, status: n.status?.phase || '', project: owner?.project, environment: owner?.environment };
@@ -101,7 +103,8 @@ export const getPods = async (req: AuthRequest, res: Response): Promise<void> =>
       podUsage(kc, namespace === 'all' ? undefined : namespace),
       namespaceOwners(),
     ]);
-    const pods = list.items.map((p) => {
+    const scope = await buildScope(req.user);
+    const pods = list.items.filter((p) => !scope || scope.namespaces.has(p.metadata?.namespace || '')).map((p) => {
       const s = summarizePod(p);
       const u = usage?.get(`${s.namespace}/${s.name}`);
       if (u) {
@@ -149,6 +152,7 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<void> 
   try {
     const cluster = await pickCluster(req.query.cluster);
     const namespace = requireNamespace(req.query.namespace || 'all');
+    if (namespace === 'all' && !isManager(req.user)) throw Object.assign(new Error('Pick a namespace'), { status: 400 });
     const { core } = await resolveClients(cluster);
     const name = req.query.name ? String(req.query.name) : undefined;
     res.json({ cluster, namespace, events: await listEvents(core, namespace, name) });
@@ -299,6 +303,7 @@ export const getUsage = async (req: AuthRequest, res: Response): Promise<void> =
       podUsage(kc, namespace === 'all' ? undefined : namespace),
       core.listNode().catch(() => null),
     ]);
+    const scope = await buildScope(req.user);
     if (!usage) {
       res.json({ cluster, available: false, message: 'metrics-server is not installed or not ready (minikube: minikube addons enable metrics-server)' });
       return;
@@ -314,7 +319,7 @@ export const getUsage = async (req: AuthRequest, res: Response): Promise<void> =
       cluster,
       available: true,
       capacity,
-      pods: [...usage.entries()].map(([key, u]) => {
+      pods: [...usage.entries()].filter(([key]) => !scope || scope.namespaces.has(key.split('/')[0])).map(([key, u]) => {
         const [ns, pod] = key.split('/');
         return { namespace: ns, pod, cpuCores: u.cpuCores, memoryBytes: u.memoryBytes, containers: u.containers };
       }),
@@ -676,8 +681,11 @@ export const getResources = async (req: AuthRequest, res: Response): Promise<voi
     const cluster = await pickCluster(req.query.cluster);
     const namespace = requireNamespace(req.query.namespace || 'all');
     const { kc } = await resolveClients(cluster);
+    if (!def.namespaced && def.kind !== 'Namespace' && !isManager(req.user)) throw Object.assign(new Error(`${def.kind} is cluster-wide: DevOps admins only`), { status: 403 });
     const [items, owners] = await Promise.all([listKind(kc, def, namespace), namespaceOwners()]);
-    const rows = items.map((o) => {
+    const scope = await buildScope(req.user);
+    const inScope = (o: any) => !scope || scope.namespaces.has(def.kind === 'Namespace' ? o.metadata?.name : o.metadata?.namespace);
+    const rows = items.filter(inScope).map((o) => {
       const r = def.row(o);
       const ns = o.metadata?.namespace || '';
       const owner = owners.get(def.kind === 'Namespace' ? o.metadata?.name : ns);
@@ -711,6 +719,10 @@ export const getResourceDetail = async (req: AuthRequest, res: Response): Promis
     const cluster = await pickCluster(req.query.cluster);
     const namespace = def.namespaced ? requireNamespace(req.params.namespace) : '';
     const name = String(req.params.name);
+    if (!def.namespaced && !isManager(req.user)) {
+      const scope = await buildScope(req.user);
+      if (!(def.kind === 'Namespace' && scope?.namespaces.has(name))) throw Object.assign(new Error(`${def.kind} is cluster-wide: DevOps admins only`), { status: 403 });
+    }
     const { kc, core } = await resolveClients(cluster);
     const obj = redact(await readObject(kc, def, namespace, name));
     const [events, pods] = await Promise.all([

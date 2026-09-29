@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { Project } from '../models/Project.js';
 import { isValidId } from '../utils/validation.js';
+import { envLevel } from '../services/access.js';
 import { ENV_ORDER } from './environmentController.js';
 import {
   EnvironmentSpec,
@@ -39,7 +40,7 @@ export const getProjectSetup = async (req: AuthRequest, res: Response): Promise<
   if (!project) return;
   try {
     const ctx = await loadProjectContext(project);
-    const names = project.argoApps.map((a) => a.environment || a.branch).filter(Boolean) as string[];
+    const names = (project.argoApps.map((a) => a.environment || a.branch).filter(Boolean) as string[]).filter((n) => envLevel(req.user, project.name, n) >= 1);
     const environments = await Promise.all(
       names.map(async (name) => {
         const spec = await specFromMapping(ctx, name);

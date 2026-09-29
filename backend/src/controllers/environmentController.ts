@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { envLevel } from '../services/access.js';
 import axios, { AxiosInstance } from 'axios';
 import { AuthRequest } from '../middleware/auth.js';
 import { Project, IProject, IArgoAppMapping } from '../models/Project.js';
@@ -513,7 +514,14 @@ export const getProjectEnvironments = async (req: AuthRequest, res: Response): P
       return;
     }
     const { environments, promotions, errors, flow, ctx } = await loadProjectEnvironments(projectDoc);
-    res.json({ project: { _id: projectDoc._id, name: projectDoc.name, appRepo: ctx.appRepo }, flow, environments, promotions, errors });
+    const visible = (env: string) => envLevel(req.user, projectDoc.name, env) >= 1;
+    res.json({
+      project: { _id: projectDoc._id, name: projectDoc.name, appRepo: ctx.appRepo },
+      flow,
+      environments: environments.filter((e: any) => visible(e.key)),
+      promotions: promotions.filter((p: any) => visible(p.to)),
+      errors,
+    });
   } catch (err: any) {
     res.status(500).json({ message: 'Failed to load environments', error: err.message });
   }

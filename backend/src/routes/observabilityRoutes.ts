@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { authenticate, requireRole } from '../middleware/auth.js';
+import { AuthRequest, authenticate, requireNamespace, requireRole } from '../middleware/auth.js';
+import { VIEW } from '../services/access.js';
 import {
   createObservabilityConnector,
   deleteObservabilityConnector,
@@ -29,19 +30,22 @@ const canManage = requireRole(['superadmin', 'devops']);
 
 router.get('/scopes', authenticate, getScopes);
 router.get('/namespaces', authenticate, getNamespaces);
-router.get('/pods', authenticate, getPods);
-router.get('/pods/:namespace/:pod', authenticate, getPodDetail);
-router.get('/events', authenticate, getEvents);
+const q = (k: string) => (req: AuthRequest) => req.query[k];
+const p = (k: string) => (req: AuthRequest) => req.params[k];
+
+router.get('/pods', authenticate, requireNamespace(VIEW, q('namespace')), getPods);
+router.get('/pods/:namespace/:pod', authenticate, requireNamespace(VIEW, p('namespace')), getPodDetail);
+router.get('/events', authenticate, requireNamespace(VIEW, q('namespace')), getEvents);
 router.get('/kinds', authenticate, getKinds);
-router.get('/resources', authenticate, getResources);
-router.get('/resources/:kind/:namespace/:name', authenticate, getResourceDetail);
+router.get('/resources', authenticate, requireNamespace(VIEW, q('namespace')), getResources);
+router.get('/resources/:kind/:namespace/:name', authenticate, requireNamespace(VIEW, p('namespace')), getResourceDetail);
 
-router.get('/logs', authenticate, getLogs);
-router.get('/logs/stream', authenticate, streamLogs);
-router.get('/logs/history', authenticate, getLogHistory);
+router.get('/logs', authenticate, requireNamespace(VIEW, q('namespace')), getLogs);
+router.get('/logs/stream', authenticate, requireNamespace(VIEW, q('namespace')), streamLogs);
+router.get('/logs/history', authenticate, requireNamespace(VIEW, q('namespace')), getLogHistory);
 
-router.get('/metrics/usage', authenticate, getUsage);
-router.get('/metrics/range', authenticate, getMetricsRange);
+router.get('/metrics/usage', authenticate, requireNamespace(VIEW, q('namespace')), getUsage);
+router.get('/metrics/range', authenticate, requireNamespace(VIEW, q('namespace')), getMetricsRange);
 router.get('/metrics/query', authenticate, canManage, queryMetrics);
 
 router.get('/connectors', authenticate, listObservabilityConnectors);

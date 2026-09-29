@@ -5,6 +5,8 @@ import { argoRequest } from './argoController.js';
 import { ENV_ORDER } from './environmentController.js';
 import { describeRequestError } from '../utils/httpError.js';
 import { isValidId } from '../utils/validation.js';
+import { IUser } from '../models/User.js';
+import { envLevel, projectLevel } from '../services/access.js';
 
 // One plain-language state per environment, derived from ArgoCD sync + health + operation.
 export type EnvState = 'healthy' | 'deploying' | 'waiting' | 'failing' | 'missing' | 'unknown';
@@ -103,8 +105,9 @@ const loadArgoApps = async (): Promise<{ apps: Map<string, any> | null; error: s
   }
 };
 
-const summarize = (p: IProject, apps: Map<string, any> | null) => {
+const summarize = (p: IProject, apps: Map<string, any> | null, user?: IUser) => {
   const environments = [...(p.argoApps || [])]
+    .filter((a) => envLevel(user, p.name, a.environment || a.branch || a.appName) >= 1)
     .sort((x, y) => rank(x.environment || x.branch || '') - rank(y.environment || y.branch || ''))
     .map((a) => envOverview(a, apps?.get(a.appName)));
   const hasApp = p.gitLabRepos.some((r) => r.role === 'app') || p.gitLabRepos.some((r) => r.role !== 'gitops');
@@ -138,10 +141,11 @@ const summarize = (p: IProject, apps: Map<string, any> | null) => {
   };
 };
 
-export const getProjectsOverview = async (_req: AuthRequest, res: Response): Promise<void> => {
+export const getProjectsOverview = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const [projects, argo] = await Promise.all([Project.find().sort({ createdAt: -1 }), loadArgoApps()]);
-    res.json({ argoError: argo.error || undefined, projects: projects.map((p) => summarize(p, argo.apps)) });
+    const visible = projects.filter((p) => projectLevel(req.user, p.name) >= 1);
+    res.json({ argoError: argo.error || undefined, projects: visible.map((p) => summarize(p, argo.apps, req.user)) });
   } catch (err) {
     res.status(500).json({ message: describeRequestError(err, 'DevOps Intelligence') });
   }
@@ -155,7 +159,7 @@ export const getProjectOverview = async (req: AuthRequest, res: Response): Promi
       return;
     }
     const argo = await loadArgoApps();
-    res.json({ argoError: argo.error || undefined, project: summarize(project, argo.apps) });
+    res.json({ argoError: argo.error || undefined, project: summarize(project, argo.apps, req.user) });
   } catch (err) {
     res.status(500).json({ message: describeRequestError(err, 'DevOps Intelligence') });
   }

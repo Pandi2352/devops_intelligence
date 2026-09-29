@@ -17,6 +17,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// A 401 means the session is gone (expired, revoked, account disabled): tell AuthContext to sign out.
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const url = String(err?.config?.url || '');
+    if (axios.isAxiosError(err) && err.response?.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/me/password')) {
+      const detail = (err.response.data as { message?: string } | undefined)?.message;
+      window.dispatchEvent(new CustomEvent('auth:expired', { detail }));
+    }
+    return Promise.reject(err);
+  }
+);
+
 // Extracts the most useful message from an API error for display in the UI.
 export const getApiErrorMessage = (err: unknown, fallback = 'Something went wrong'): string => {
   if (axios.isAxiosError(err)) {

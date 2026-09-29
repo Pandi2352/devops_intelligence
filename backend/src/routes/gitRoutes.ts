@@ -20,6 +20,8 @@ import {
   fetchJobArtifacts,
 } from '../controllers/gitController.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
+import { requireRepo } from '../services/gitAccess.js';
+import { DEPLOY, VIEW } from '../services/access.js';
 import {
   branchPipeline,
   closeMergeRequest,
@@ -45,20 +47,20 @@ router.post('/:id/test', authenticate, canManageConnectors, testSavedGitIntegrat
 router.get('/:id/repos', authenticate, fetchRepositories);
 router.post('/:id/projects', authenticate, canManageConnectors, createGitLabProject);
 router.post('/:id/repos/:repoId/push-template', authenticate, canManageConnectors, pushWorkspaceTemplate);
-router.get('/:id/repos/:repoId/commits', authenticate, fetchCommits);
-router.get('/:id/repos/:repoId/branches', authenticate, fetchBranches);
-router.get('/:id/repos/:repoId/gitops-layout', authenticate, fetchGitopsLayout);
-router.get('/:id/repos/:repoId/languages', authenticate, fetchLanguages);
-router.get('/:id/repos/:repoId/pipelines', authenticate, fetchPipelines);
-router.get('/:id/repos/:repoId/jobs/:jobId/trace', authenticate, fetchJobTrace);
-router.get('/:id/repos/:repoId/jobs/:jobId/artifacts', authenticate, fetchJobArtifacts);
-router.post('/:id/repos/:repoId/pipelines', authenticate, triggerPipeline);
-router.get('/:id/repos/:repoId/compare', authenticate, compareBranches);
-router.get('/:id/repos/:repoId/branch-pipeline', authenticate, branchPipeline);
-router.get('/:id/repos/:repoId/merge-requests', authenticate, listMergeRequests);
-router.post('/:id/repos/:repoId/merge-requests', authenticate, canManageConnectors, createMergeRequest);
-router.post('/:id/repos/:repoId/merge-requests/:iid/merge', authenticate, canManageConnectors, mergeMergeRequest);
-router.post('/:id/repos/:repoId/merge-requests/:iid/rebase', authenticate, canManageConnectors, rebaseMergeRequest);
-router.post('/:id/repos/:repoId/merge-requests/:iid/close', authenticate, canManageConnectors, closeMergeRequest);
+router.get('/:id/repos/:repoId/commits', authenticate, requireRepo(VIEW), fetchCommits);
+router.get('/:id/repos/:repoId/branches', authenticate, requireRepo(VIEW), fetchBranches);
+router.get('/:id/repos/:repoId/gitops-layout', authenticate, requireRepo(VIEW), fetchGitopsLayout);
+router.get('/:id/repos/:repoId/languages', authenticate, requireRepo(VIEW), fetchLanguages);
+router.get('/:id/repos/:repoId/pipelines', authenticate, requireRepo(VIEW), fetchPipelines);
+router.get('/:id/repos/:repoId/jobs/:jobId/trace', authenticate, requireRepo(VIEW), fetchJobTrace);
+router.get('/:id/repos/:repoId/jobs/:jobId/artifacts', authenticate, requireRepo(VIEW), fetchJobArtifacts);
+router.post('/:id/repos/:repoId/pipelines', authenticate, requireRepo(DEPLOY, (req) => String(req.body?.ref || 'main')), triggerPipeline);
+router.get('/:id/repos/:repoId/compare', authenticate, requireRepo(VIEW), compareBranches);
+router.get('/:id/repos/:repoId/branch-pipeline', authenticate, requireRepo(VIEW), branchPipeline);
+router.get('/:id/repos/:repoId/merge-requests', authenticate, requireRepo(VIEW), listMergeRequests);
+router.post('/:id/repos/:repoId/merge-requests', authenticate, requireRepo(DEPLOY, (req) => String(req.body?.target || '')), createMergeRequest);
+router.post('/:id/repos/:repoId/merge-requests/:iid/merge', authenticate, requireRepo(DEPLOY, () => '*'), mergeMergeRequest);
+router.post('/:id/repos/:repoId/merge-requests/:iid/rebase', authenticate, requireRepo(DEPLOY, () => '*'), rebaseMergeRequest);
+router.post('/:id/repos/:repoId/merge-requests/:iid/close', authenticate, requireRepo(DEPLOY, () => '*'), closeMergeRequest);
 
 export default router;

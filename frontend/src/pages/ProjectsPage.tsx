@@ -133,9 +133,10 @@ const HowItWorks: React.FC = () => {
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const { hasRole } = useAuth();
-  const canManage = hasRole(['superadmin', 'devops']);
+  const { hasRole, isManager, levelOn } = useAuth();
+  const canManage = isManager; // create projects
   const canDelete = hasRole(['superadmin']);
+  const canAdmin = (name: string) => levelOn(name) >= 3;
 
   const [projects, setProjects] = useState<ProjectOverview[]>([]);
   const [argoError, setArgoError] = useState<string | undefined>();
@@ -238,7 +239,7 @@ export const ProjectsPage: React.FC = () => {
           <ScrollText size={14} />
         </Link>
       )}
-      {canManage && (
+      {canAdmin(p.name) && (
         <button type="button" onClick={() => setModal({ project: p })} className="p-1.5 rounded-md text-slate-500 hover:text-sky-700 hover:bg-sky-50" title="Edit" aria-label={`Edit ${p.name}`}>
           <Pencil size={14} />
         </button>

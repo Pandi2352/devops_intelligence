@@ -286,7 +286,9 @@ Edit `backend/.env`:
 |---|---|---|
 | `PORT` | `5000` | |
 | `MONGODB_URI` | `mongodb://127.0.0.1:27017/kubeorbit` | |
-| `JWT_SECRET` | a long random string | signs login tokens |
+| `JWT_SECRET` | a long random string (≥ 32 chars) | signs sign-in tokens. Sample values from the repo are refused; changing it signs everyone out |
+| `JWT_EXPIRES_IN` | `12h` | how long a sign-in lasts |
+| `ALLOW_SIGNUP` | `false` | self sign-up (always as a Viewer with no access); admins add users otherwise |
 | `CREDENTIALS_SECRET` | a long random string | **encrypts saved credentials. Never change it later**, or saved tokens become unreadable |
 | `KUBECONFIG_PATH` | empty | empty = `~/.kube/config` |
 | `FRONTEND_URL` | `http://localhost:5173` | |
@@ -298,8 +300,9 @@ npm run build && npm start        # or: npm run dev   (auto-reload while develop
 curl http://localhost:5000/api/health
 ```
 
-On first start DevOps Intelligence creates the admin user **`admin@kubeorbit.local`** / **`AdminPassword123!`**.
-Change the password after the first login.
+On an empty database DevOps Intelligence creates the first Super Admin **`admin@kubeorbit.local`** with the password
+from `ADMIN_INITIAL_PASSWORD` (or the documented `AdminPassword123!`). That password is public, so the first sign-in goes
+straight to **Set your own password**. Then add your team in **Authorization → User Permissions**.
 
 **Frontend**
 
@@ -685,6 +688,9 @@ and **Terminate** a running operation. Sync and rollback need Super Admin or Dev
 | prod has no app metrics but other environments do | ArgoCD page: prod OutOfSync | the ServiceMonitor is committed but prod is manual-sync: press **Sync prod** |
 | Live usage shows "metrics-server n/a" | | `minikube addons enable metrics-server`, wait a minute |
 | Saved credentials suddenly fail | backend log `Failed to decrypt` | `CREDENTIALS_SECRET` changed: restore it, or re-enter the tokens |
+| Signed out with "Your session has expired" | | the 12-hour sign-in ended, your password / role changed, or `JWT_SECRET` changed: sign in again |
+| "You need build and deploy access to …" | Authorization → User Permissions | ask a DevOps admin to add that project + environment |
+| "Too many failed attempts" | | wait 15 minutes, or ask an admin to reset your password |
 | Pipeline never starts on gitlab.com | GitLab → Settings → CI/CD → Runners | verify your account for shared runners |
 | CI YAML error on `deploy(dev): …` | GitLab CI Lint | quote script lines containing `: ` |
 
@@ -692,15 +698,40 @@ and **Terminate** a running operation. Sync and rollback need Super Admin or Dev
 
 ## 9. Roles
 
+Every API call checks who you are and what you may do; the UI hides what you cannot use.
+
+**Global roles**
+
 | Role | Can |
 |---|---|
-| **Super Admin** | everything, including deleting projects |
-| **DevOps** | connectors, projects, environments (add / fix / remove), promote, sync, rollback, PromQL explorer |
-| **Developer** | view everything, logs, metrics |
-| **Viewer** | read-only |
+| **Super Admin** | everything: users of any role, deleting projects |
+| **DevOps** | everything except managing Super Admin / DevOps accounts and deleting projects |
+| **Developer** | only what their project permissions grant (below) |
+| **Viewer** | only viewing, and only in the projects they are granted (a Viewer never deploys) |
 
-> Project-level permissions (Authorization → User Permissions) are saved but **not enforced by the API yet**.
-> Authentication hardening is planned next.
+**Project permissions** (Authorization → User Permissions → Direct permissions), one row per project + environment:
+
+| Permission | On that project / environment |
+|---|---|
+| View only | see the project and environment: status, pipelines, logs, metrics, pods, manifests, merge requests |
+| Build and Deploy | + run pipelines, merge into the environment branch, promote into it, sync, roll back, redeploy |
+| Admin | + edit the project, add / fix / remove environments (needs environment **All**) |
+| Manager Approver | view + approve other people's approval requests (never your own) |
+
+Examples: *Build and Deploy* on `kubeorbit-demo` / `dev` + *View only* on `kubeorbit-demo` / `qa` lets a developer ship to
+dev, watch qa, and see nothing of staging, prod or other projects — including their namespaces, pods and logs.
+Project `*` means every project.
+
+**What always stays with DevOps / Super Admin:** Connectors, users, the PromQL explorer, cluster-wide resources
+(nodes, storage classes) and namespaces that no project owns.
+
+**Sessions**
+
+- Sign-in lasts 12 hours (`JWT_EXPIRES_IN`). Changing your password, a role change or disabling an account signs that
+  user out everywhere.
+- 5 wrong passwords lock that email for 15 minutes.
+- Accounts on a published or admin-set password must choose their own at first sign-in (Navbar → key icon to change it later).
+- There is no self sign-up: an admin adds users (leave the password empty to get a one-time temporary password).
 
 ---
 

@@ -137,9 +137,10 @@ const describeAction = (pending: PendingAction): { title: string; label: string;
 };
 
 export const EnvironmentsPage: React.FC = () => {
-  const { hasRole } = useAuth();
+  const { levelOn } = useAuth();
   const toast = useToast();
-  const canManage = hasRole(['superadmin', 'devops']);
+  // Build-and-deploy on an environment allows sync, redeploy, rollback and promoting into it.
+  const canDeployTo = (env: string) => (data ? levelOn(data.project.name, env) >= 2 : false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [projects, setProjects] = useState<ProjectOption[] | null>(null);
@@ -282,7 +283,7 @@ export const EnvironmentsPage: React.FC = () => {
               <EnvironmentCard
                 key={env.appName}
                 env={env}
-                canManage={canManage}
+                canManage={canDeployTo(env.key)}
                 onSync={(e) => setPending({ kind: 'sync', env: e })}
                 onRedeploy={(e) => setPending({ kind: 'redeploy', env: e })}
                 onHistory={setHistoryFor}
@@ -294,7 +295,7 @@ export const EnvironmentsPage: React.FC = () => {
           <PromotionPath
             environments={data.environments}
             promotions={data.promotions}
-            canManage={canManage}
+            canPromoteTo={canDeployTo}
             onAction={(p) => setPending({ kind: 'promote', promotion: p })}
             onSync={(e) => setPending({ kind: 'sync', env: e })}
           />
@@ -322,7 +323,7 @@ export const EnvironmentsPage: React.FC = () => {
         <DeployHistoryModal
           projectId={data.project._id}
           env={historyFor}
-          canManage={canManage}
+          canManage={canDeployTo(historyFor.key)}
           onClose={() => setHistoryFor(null)}
           onRolledBack={(message) => {
             setHistoryFor(null);
