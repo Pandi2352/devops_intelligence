@@ -28,6 +28,7 @@ export interface IProject extends Document {
   name: string;
   description?: string;
   gitLabRepos: IGitRepoMapping[];
+  gitopsPath?: string; // folder holding one overlay per environment, e.g. k8s/overlays
   kubernetesMappings: IK8sMapping[];
   argoApps: IArgoAppMapping[];
   active: boolean;
@@ -47,6 +48,7 @@ const ProjectSchema = new Schema<IProject>(
       type: String,
       default: '',
     },
+    gitopsPath: { type: String, default: '' },
     gitLabRepos: [
       {
         name: { type: String, required: true },

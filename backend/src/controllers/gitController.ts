@@ -47,7 +47,7 @@ const verifyGitToken = async (provider: GitProvider, token: string, baseUrl: str
   return glRes.data.username;
 };
 
-const findIntegration = async (id: unknown) => (isValidId(id) ? GitIntegration.findById(id) : null);
+export const findIntegration = async (id: unknown) => (isValidId(id) ? GitIntegration.findById(id) : null);
 
 const clearOtherDefaults = (doc: IGitIntegration) =>
   GitIntegration.updateMany({ _id: { $ne: doc._id }, provider: doc.provider }, { isDefault: false });
@@ -585,7 +585,7 @@ export const pushWorkspaceTemplate = async (req: AuthRequest, res: Response): Pr
 };
 
 // Helper to resolve repository name or ID to numeric project ID
-const resolveProjectId = async (gitlabUrl: string, token: string, repoId: string): Promise<string> => {
+export const resolveProjectId = async (gitlabUrl: string, token: string, repoId: string): Promise<string> => {
   if (/^\d+$/.test(repoId)) return repoId;
   try {
     const res = await axios.get(`${gitlabUrl}/api/v4/projects?min_access_level=20&per_page=100`, {
@@ -964,6 +964,56 @@ export const fetchJobArtifacts = async (req: AuthRequest, res: Response): Promis
       res.json({ files: [], expired: true });
       return;
     }
+    res.status(500).json({ message: describeRequestError(err, 'GitLab') });
+  }
+};
+
+// ---------------------------------------------------------------- GitOps layout detection
+
+// Scans a GitOps repo for Kustomize folders and suggests where environment overlays live:
+// k8s/overlays/{dev,qa,prod} → { path: 'k8s/overlays', environments: ['dev','qa','prod'] }.
+export const fetchGitopsLayout = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id, repoId } = req.params;
+    const integration = await findIntegration(id);
+    if (!integration || integration.provider !== 'gitlab' || !integration.isActive) {
+      res.json({ overlayBases: [], kustomizations: [], empty: true });
+      return;
+    }
+    const gitlabUrl = integration.baseUrl || DEFAULT_BASE_URL.gitlab;
+    const targetId = await resolveProjectId(gitlabUrl, integration.token, String(repoId));
+    const headers = { 'PRIVATE-TOKEN': integration.token };
+    const project = await axios.get(`${gitlabUrl}/api/v4/projects/${targetId}`, { headers });
+    const ref = String(req.query.ref || project.data.default_branch || 'main');
+    if (project.data.empty_repo) {
+      res.json({ ref, overlayBases: [], kustomizations: [], empty: true });
+      return;
+    }
+
+    const files: string[] = [];
+    for (let page = 1; page <= 10; page += 1) {
+      const r = await axios.get(`${gitlabUrl}/api/v4/projects/${targetId}/repository/tree`, {
+        headers,
+        params: { ref, recursive: true, per_page: 100, page },
+      });
+      files.push(...(r.data || []).filter((e: any) => e.type === 'blob').map((e: any) => e.path as string));
+      if (!r.headers['x-next-page']) break;
+    }
+
+    const kustomizations = files.filter((f) => /(^|\/)kustomization\.ya?ml$/.test(f)).map((f) => (f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : ''));
+    const groups = new Map<string, string[]>();
+    for (const dir of kustomizations) {
+      if (!dir.includes('/')) continue;
+      const parent = dir.slice(0, dir.lastIndexOf('/'));
+      const name = dir.slice(dir.lastIndexOf('/') + 1);
+      if (name === 'base' || name === 'bases' || name === 'components') continue;
+      groups.set(parent, [...(groups.get(parent) || []), name]);
+    }
+    const overlayBases = [...groups.entries()]
+      .map(([path, environments]) => ({ path, environments: environments.sort() }))
+      .sort((a, b) => b.environments.length - a.environments.length || a.path.localeCompare(b.path));
+    res.json({ ref, overlayBases, kustomizations, empty: false });
+  } catch (err: any) {
     res.status(500).json({ message: describeRequestError(err, 'GitLab') });
   }
 };

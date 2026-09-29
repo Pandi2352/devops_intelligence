@@ -7,6 +7,7 @@ import {
   deleteProject,
 } from '../controllers/projectController.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
+import { getProjectOverview, getProjectsOverview } from '../controllers/projectOverviewController.js';
 import {
   getProjectEnvironments,
   promoteEnvironment,
@@ -27,7 +28,9 @@ import {
 const router = Router();
 
 router.get('/', getProjects);
+router.get('/overview', authenticate, getProjectsOverview);
 router.get('/:id', getProjectById);
+router.get('/:id/overview', authenticate, getProjectOverview);
 router.get('/:id/environments', authenticate, getProjectEnvironments);
 router.post('/:id/environments/promote', authenticate, requireRole(['superadmin', 'devops']), promoteEnvironment);
 router.get('/:id/setup', authenticate, getProjectSetup);

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -29,10 +29,11 @@ import { ProjectFormModal } from '../components/projects/ProjectFormModal';
 import { AddEnvironmentModal } from '../components/projects/AddEnvironmentModal';
 import { ManifestsModal } from '../components/projects/ManifestsModal';
 import { CheckList, CheckSummary, StepList } from '../components/projects/projectUi';
+import { ActivityFeed, EnvironmentTile, PromoteHint, SetupStepper } from '../components/projects/EnvironmentPipeline';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getApiErrorMessage } from '../api/client';
-import { EnvironmentSetup, Project, ProjectSetup, ProvisionResult, projectApi } from '../api/projectApi';
+import { EnvironmentSetup, Project, ProjectOverview, ProjectSetup, ProvisionResult, projectApi, projectOverviewApi } from '../api/projectApi';
 import { repoLabel, repoWebUrl } from '../utils/project';
 
 const InfoCard: React.FC<{ icon: React.ReactNode; label: string; children: React.ReactNode }> = ({ icon, label, children }) => (
@@ -78,6 +79,30 @@ export const ProjectDetailPage: React.FC = () => {
   const [deleteNamespace, setDeleteNamespace] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [overview, setOverview] = useState<ProjectOverview | null>(null);
+  const [argoError, setArgoError] = useState<string | undefined>();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'setup' ? 'setup' : 'overview';
+  const setTab = (t: 'overview' | 'setup') =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (t === 'setup') next.set('tab', 'setup');
+        else next.delete('tab');
+        return next;
+      },
+      { replace: true }
+    );
+
+  const loadOverview = useCallback(async () => {
+    try {
+      const r = await projectOverviewApi.get(id);
+      setOverview(r.project);
+      setArgoError(r.argoError);
+    } catch {
+      /* the page still works from the setup data */
+    }
+  }, [id]);
 
   const loadSetup = useCallback(async () => {
     setIsChecking(true);
@@ -104,12 +129,26 @@ export const ProjectDetailPage: React.FC = () => {
       return;
     }
     setIsLoading(false);
-    await loadSetup();
-  }, [id, loadSetup]);
+    await Promise.all([loadOverview(), loadSetup()]);
+  }, [id, loadSetup, loadOverview]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Arriving from "New project" (?addEnv=1): open Add environment as soon as the project is ready for it.
+  useEffect(() => {
+    if (params.get('addEnv') !== '1' || !setup?.ready || !canManage) return;
+    setAdding(true);
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('addEnv');
+        return next;
+      },
+      { replace: true }
+    );
+  }, [params, setup?.ready, canManage, setParams]);
 
   const toggle = (name: string) =>
     setExpanded((prev) => {
@@ -124,7 +163,7 @@ export const ProjectDetailPage: React.FC = () => {
     try {
       const result = await projectApi.provision(id, env.name);
       setRunResult({ title: `Provision ${env.name}`, result });
-      await loadSetup();
+      await Promise.all([loadSetup(), loadOverview()]);
     } catch (err) {
       toast.error(getApiErrorMessage(err, `Could not provision ${env.name}`));
     } finally {
@@ -141,7 +180,7 @@ export const ProjectDetailPage: React.FC = () => {
       setRunResult({ title: `Remove ${removeTarget.name}`, result });
       setRemoveTarget(null);
       setProject(await projectApi.get(id));
-      await loadSetup();
+      await Promise.all([loadSetup(), loadOverview()]);
     } catch (err) {
       setRemoveError(getApiErrorMessage(err, 'Could not remove the environment'));
     } finally {
@@ -166,6 +205,11 @@ export const ProjectDetailPage: React.FC = () => {
   const gitopsRepo = project.gitLabRepos.find((r) => r.role === 'gitops');
   const envs = setup?.environments ?? [];
   const incomplete = envs.filter((e) => e.checks.some((c) => !c.ok)).length;
+  const nextSetup = overview?.setup.find((s) => !s.done)?.key;
+  const TABS: { key: 'overview' | 'setup'; label: string; badge: number }[] = [
+    { key: 'overview', label: 'Overview', badge: 0 },
+    { key: 'setup', label: 'Setup checklist', badge: incomplete },
+  ];
 
   return (
     <div className="space-y-4">
@@ -221,10 +265,112 @@ export const ProjectDetailPage: React.FC = () => {
         </div>
       )}
 
+      {overview && overview.setup.some((s) => !s.done) && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-sky-900">Finish setting up {project.name}</div>
+            <SetupStepper steps={overview.setup} />
+          </div>
+          {canManage && nextSetup === 'repos' && (
+            <Button size="sm" onClick={() => setEditing(true)}>
+              Add repositories
+            </Button>
+          )}
+          {canManage && nextSetup === 'cluster' && (
+            <Button size="sm" onClick={() => setEditing(true)}>
+              Pick a cluster
+            </Button>
+          )}
+          {canManage && nextSetup === 'environment' && (
+            <Button size="sm" leftIcon={<Plus size={13} />} onClick={() => setAdding(true)} disabled={!setup?.ready}>
+              Add first environment
+            </Button>
+          )}
+          {nextSetup === 'deploy' && (
+            <span className="text-xs text-sky-900">
+              Push to the <span className="font-mono">{overview.environments[0]?.branch}</span> branch: CI builds it and ArgoCD deploys it.
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-1 border-b border-slate-200" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-3 py-2 text-sm font-semibold border-b-2 -mb-px ${tab === t.key ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+          >
+            {t.label}
+            {t.badge > 0 && <span className="ml-1.5 px-1.5 rounded-full bg-rose-100 text-rose-700 text-[10px]">{t.badge}</span>}
+          </button>
+        ))}
+        {canManage && (
+          <Button size="sm" className="ml-auto mb-1" leftIcon={<Plus size={13} />} onClick={() => setAdding(true)} disabled={!setup?.ready}>
+            Add environment
+          </Button>
+        )}
+      </div>
+
+      {tab === 'overview' && (
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+          <div className="space-y-3">
+            {argoError && (
+              <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2" role="status">
+                <AlertTriangle size={14} /> Live status unavailable: {argoError}
+              </div>
+            )}
+            {!overview ? (
+              <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-64 rounded-lg border border-slate-200 bg-white animate-pulse" />
+                ))}
+              </div>
+            ) : overview.environments.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-xs text-slate-500">
+                No environments yet. {canManage && setup?.ready ? 'Press Add environment and start with dev.' : ''}
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">
+                {overview.environments.map((env, i) => (
+                  <EnvironmentTile
+                    key={env.name}
+                    env={env}
+                    previous={overview.environments[i - 1]}
+                    actions={[
+                      { label: 'Logs', icon: <ScrollText size={13} />, to: `/logs?project=${project._id}&env=${encodeURIComponent(env.name)}` },
+                      { label: 'Metrics', icon: <LineChart size={13} />, to: `/metrics?project=${project._id}&env=${encodeURIComponent(env.name)}` },
+                      { label: 'Pods', icon: <Boxes size={13} />, to: `/resource-browser?namespace=${encodeURIComponent(env.namespace)}` },
+                      { label: 'Manifests', icon: <FileCode2 size={13} />, onClick: () => setManifestsFor(env.name) },
+                    ]}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          <aside className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-900">Recent deploys</h2>
+              <button type="button" onClick={loadOverview} className="p-1 text-slate-400 hover:text-slate-700" aria-label="Refresh recent deploys">
+                <RefreshCw size={13} />
+              </button>
+            </div>
+            <ActivityFeed environments={overview?.environments || []} />
+            <div className="pt-2 border-t border-slate-100">
+              <PromoteHint projectId={project._id} />
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {tab === 'setup' && (
       <section className="rounded-lg border border-slate-200 bg-white">
         <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-200">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Environments</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Setup checklist</h2>
             <p className="text-[11px] text-slate-500">
               {envs.length
                 ? incomplete
@@ -237,11 +383,6 @@ export const ProjectDetailPage: React.FC = () => {
             <Button size="sm" variant="secondary" leftIcon={<RefreshCw size={13} className={isChecking ? 'animate-spin' : ''} />} onClick={loadSetup} disabled={isChecking}>
               Re-check
             </Button>
-            {canManage && (
-              <Button size="sm" leftIcon={<Plus size={13} />} onClick={() => setAdding(true)} disabled={!setup?.ready}>
-                Add environment
-              </Button>
-            )}
           </div>
         </header>
 
@@ -334,6 +475,7 @@ export const ProjectDetailPage: React.FC = () => {
           </ul>
         )}
       </section>
+      )}
 
       {editing && (
         <ProjectFormModal
@@ -356,6 +498,7 @@ export const ProjectDetailPage: React.FC = () => {
           onAdded={async () => {
             setProject(await projectApi.get(id));
             loadSetup();
+            loadOverview();
           }}
         />
       )}

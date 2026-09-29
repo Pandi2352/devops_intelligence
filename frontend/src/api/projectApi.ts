@@ -21,6 +21,7 @@ export interface Project {
   name: string;
   description?: string;
   gitLabRepos: ProjectRepo[];
+  gitopsPath?: string;
   kubernetesMappings: { clusterName: string; namespaces: string[] }[];
   argoApps: ProjectArgoApp[];
   active: boolean;
@@ -30,6 +31,7 @@ export interface Project {
 
 export interface ProjectInput {
   name?: string;
+  gitopsPath?: string;
   description?: string;
   appRepoUrl?: string;
   appDefaultBranch?: string;
@@ -143,3 +145,38 @@ export interface EnvironmentManifests {
   resources: ManifestResource[];
   resourcesError?: string;
 }
+
+// ---------------------------------------------------------------- overview (projects list + project page)
+
+export type EnvState = 'healthy' | 'deploying' | 'waiting' | 'failing' | 'missing' | 'unknown';
+
+export interface EnvOverview {
+  name: string;
+  namespace: string;
+  appName: string;
+  branch: string;
+  state: EnvState;
+  message: string;
+  sync: string;
+  health: string;
+  autoSync: boolean;
+  image: string;
+  tag: string;
+  commit: string;
+  builtAt: string | null;
+  lastDeployAt: string | null;
+  lastDeployBy: string;
+  history: { at: string; revision: string; by: string }[];
+}
+
+export interface ProjectOverview extends Project {
+  environments: EnvOverview[];
+  setup: { key: 'repos' | 'cluster' | 'environment' | 'deploy'; label: string; done: boolean }[];
+  attention: number;
+  lastDeployAt: string | null;
+}
+
+export const projectOverviewApi = {
+  list: async (): Promise<{ argoError?: string; projects: ProjectOverview[] }> => (await api.get('/projects/overview')).data,
+  get: async (id: string): Promise<{ argoError?: string; project: ProjectOverview }> => (await api.get(`/projects/${encodeURIComponent(id)}/overview`)).data,
+};

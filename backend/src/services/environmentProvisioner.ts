@@ -61,7 +61,7 @@ const exists = async (p: Promise<unknown>) => p.then(() => true).catch((e) => (e
 export const loadProjectContext = async (project: IProject): Promise<ProjectContext> => {
   const repos = project.gitLabRepos || [];
   let gitopsRepoUrl = repos.find((r) => r.role === 'gitops')?.repoUrl || '';
-  let overlayBase = 'k8s/overlays';
+  let overlayBase = project.gitopsPath || 'k8s/overlays';
 
   // Fall back to what ArgoCD already deploys from.
   const firstApp = project.argoApps?.[0]?.appName;
@@ -70,7 +70,7 @@ export const loadProjectContext = async (project: IProject): Promise<ProjectCont
       const { data } = await argoRequest('get', `/api/v1/applications/${enc(firstApp)}`);
       gitopsRepoUrl = gitopsRepoUrl || data.spec?.source?.repoURL || '';
       const path: string = data.spec?.source?.path || '';
-      if (path.includes('/')) overlayBase = path.slice(0, path.lastIndexOf('/'));
+      if (path.includes('/') && !project.gitopsPath) overlayBase = path.slice(0, path.lastIndexOf('/'));
     } catch {
       // ArgoCD unreachable or app missing: keep defaults.
     }

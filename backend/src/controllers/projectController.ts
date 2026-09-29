@@ -128,6 +128,13 @@ const applyStructuredInput = (project: IProject, body: any): string | null => {
     const current = project.kubernetesMappings?.[0];
     project.kubernetesMappings = [{ clusterName, namespaces: current?.namespaces || [] }];
   }
+
+  if (body.gitopsPath !== undefined) {
+    // A relative folder inside the GitOps repo; no absolute paths or ../ escapes.
+    const path = cleanString(body.gitopsPath, 200).replace(/^\/+|\/+$/g, '');
+    if (path && (!/^[A-Za-z0-9._\/-]+$/.test(path) || path.split('/').includes('..'))) return 'GitOps folder must be a relative path like k8s/overlays';
+    project.gitopsPath = path;
+  }
   return null;
 };
 

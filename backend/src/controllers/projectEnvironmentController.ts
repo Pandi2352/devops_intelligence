@@ -112,6 +112,16 @@ export const addEnvironment = async (req: AuthRequest, res: Response): Promise<v
       res.status(409).json({ message: `Another environment already uses namespace ${spec.namespace} or app ${spec.appName}` });
       return;
     }
+    // Never take over another project's ArgoCD app or namespace: provisioning would re-point it.
+    const other = await Project.findOne({
+      _id: { $ne: project._id },
+      $or: [{ 'argoApps.appName': spec.appName }, { 'argoApps.targetNamespace': spec.namespace }],
+    });
+    if (other) {
+      const clash = other.argoApps.find((a) => a.appName === spec.appName) ? `ArgoCD app ${spec.appName}` : `namespace ${spec.namespace}`;
+      res.status(409).json({ message: `${clash} belongs to project ${other.name}. Pick a different name.` });
+      return;
+    }
 
     // Map first, so the environment (and its checklist) shows up even if a step fails.
     project.argoApps.push({ appName: spec.appName, targetNamespace: spec.namespace, environment: name, branch: name, serverUrl: '' });

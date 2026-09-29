@@ -67,6 +67,73 @@ export interface CreateRepoInput {
   commitMessage?: string;
 }
 
+export interface GitopsLayout {
+  ref?: string;
+  empty: boolean;
+  overlayBases: { path: string; environments: string[] }[];
+  kustomizations: string[];
+}
+
+export interface GitBranch {
+  name: string;
+  default: boolean;
+  protected: boolean;
+  commit?: { id: string; shortId: string; title: string };
+}
+
+// ---------------------------------------------------------------- merge requests
+
+export interface PipelineRef {
+  id: number;
+  status: string;
+  ref: string;
+  sha: string;
+  webUrl: string;
+  createdAt: string;
+  source: string;
+}
+
+export interface MergeRequestInfo {
+  iid: number;
+  title: string;
+  source: string;
+  target: string;
+  author: string;
+  createdAt: string;
+  webUrl: string;
+  state: string;
+  status: string;
+  hasConflicts: boolean;
+  draft: boolean;
+  pipeline: PipelineRef | null;
+  mergeCommitSha: string;
+}
+
+export interface BranchComparison {
+  source: string;
+  target: string;
+  ahead: number;
+  behind: number;
+  fastForward: boolean;
+  filesChanged: number;
+  commits: { sha: string; shortId: string; title: string; author: string; date: string; webUrl: string }[];
+  files: { path: string; status: string }[];
+  compareUrl: string;
+  openMergeRequest: MergeRequestInfo | null;
+  targetProtected: boolean;
+  targetPipeline: PipelineRef | null;
+  deploysTo: { project: string; projectId: string; environment: string; namespace: string } | null;
+}
+
+export interface MergeResult {
+  merged: boolean;
+  scheduled?: boolean;
+  message: string;
+  mergeRequest: MergeRequestInfo;
+  targetPipeline?: PipelineRef | null;
+  targetPipelineStarted?: boolean;
+}
+
 export const gitApi = {
   getTemplates: async (): Promise<WorkspaceTemplate[]> => {
     const res = await api.get('/git/templates');
@@ -143,6 +210,31 @@ export const gitApi = {
     const res = await api.get(`/git/${integrationId}/repos/${repoId}/branches`);
     return res.data.branches;
   },
+  // Where a GitOps repo keeps its per-environment Kustomize overlays (e.g. k8s/overlays → dev, qa, prod).
+  getGitopsLayout: async (integrationId: string, repoId: string | number): Promise<GitopsLayout> =>
+    (await api.get(`/git/${integrationId}/repos/${repoId}/gitops-layout`)).data,
+  compareBranches: async (integrationId: string, repoId: string | number, source: string, target: string): Promise<BranchComparison> =>
+    (await api.get(`/git/${integrationId}/repos/${repoId}/compare`, { params: { source, target } })).data,
+  branchPipeline: async (integrationId: string, repoId: string | number, ref: string): Promise<PipelineRef | null> =>
+    (await api.get(`/git/${integrationId}/repos/${repoId}/branch-pipeline`, { params: { ref } })).data.pipeline,
+  listMergeRequests: async (integrationId: string, repoId: string | number, state = 'opened'): Promise<MergeRequestInfo[]> =>
+    (await api.get(`/git/${integrationId}/repos/${repoId}/merge-requests`, { params: { state } })).data.mergeRequests,
+  createMergeRequest: async (
+    integrationId: string,
+    repoId: string | number,
+    input: { source: string; target: string; title?: string; description?: string; squash?: boolean; removeSourceBranch?: boolean }
+  ): Promise<{ existed: boolean; message: string; mergeRequest: MergeRequestInfo }> =>
+    (await api.post(`/git/${integrationId}/repos/${repoId}/merge-requests`, input)).data,
+  mergeMergeRequest: async (
+    integrationId: string,
+    repoId: string | number,
+    iid: number,
+    options: { squash?: boolean; removeSourceBranch?: boolean; whenPipelineSucceeds?: boolean }
+  ): Promise<MergeResult> => (await api.post(`/git/${integrationId}/repos/${repoId}/merge-requests/${iid}/merge`, options, { timeout: 60000 })).data,
+  rebaseMergeRequest: async (integrationId: string, repoId: string | number, iid: number): Promise<{ message: string }> =>
+    (await api.post(`/git/${integrationId}/repos/${repoId}/merge-requests/${iid}/rebase`)).data,
+  closeMergeRequest: async (integrationId: string, repoId: string | number, iid: number): Promise<{ message: string }> =>
+    (await api.post(`/git/${integrationId}/repos/${repoId}/merge-requests/${iid}/close`)).data,
   getLanguages: async (integrationId: string, repoId: string | number): Promise<Record<string, number>> => {
     const res = await api.get(`/git/${integrationId}/repos/${repoId}/languages`);
     return res.data.languages;

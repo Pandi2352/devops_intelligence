@@ -36,10 +36,11 @@ import { argoApi } from '../api/argoApi';
 import { GitIntegration, GitRepo, PipelineRun, PipelineStage, GitCommit as GitCommitType, GitBranchInfo } from '../types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ScrollableTabs, TabItem } from '../components/common/ScrollableTabs';
+import { MergePanel } from '../components/git/MergePanel';
 import { Dropdown } from '../components/common/Dropdown';
 import { GitLabIcon } from '../components/common/BrandIcons';
 import { useNavigate } from 'react-router-dom';
-import { FolderPlus, Upload } from 'lucide-react';
+import { FolderPlus, GitMerge, Upload } from 'lucide-react';
 import { CreateRepoModal } from '../components/git/CreateRepoModal';
 import { PushTemplateModal } from '../components/git/PushTemplateModal';
 import { JobLogModal } from '../components/git/JobLogModal';
@@ -59,7 +60,7 @@ const TRIGGER_LABEL: Record<string, string> = {
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
-type TabType = 'pipelines' | 'commits' | 'branches' | 'gitops' | 'languages' | 'architecture';
+type TabType = 'pipelines' | 'commits' | 'branches' | 'merge' | 'gitops' | 'languages' | 'architecture';
 
 // Live relative timestamp formatter (No mock dates!)
 const formatRelativeTime = (isoString?: string): string => {
@@ -115,7 +116,7 @@ export const GitPage: React.FC = () => {
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
 
   // Tab & live detail data states
-  const [activeTab, setActiveTab] = useState<'pipelines' | 'commits' | 'branches' | 'gitops' | 'languages' | 'architecture'>('pipelines');
+  const [activeTab, setActiveTab] = useState<TabType>('pipelines');
   const [pipelines, setPipelines] = useState<PipelineRun[]>([]);
   const [commits, setCommits] = useState<GitCommitType[]>([]);
   const [branches, setBranches] = useState<GitBranchInfo[]>([]);
@@ -422,6 +423,14 @@ export const GitPage: React.FC = () => {
       activeBorderColor: 'border-purple-600',
       activeTextColor: 'text-purple-700',
       activeBgColor: 'bg-purple-50/40',
+    },
+    {
+      id: 'merge',
+      label: 'Merge',
+      icon: <GitMerge size={14} className="text-fuchsia-600" />,
+      activeBorderColor: 'border-fuchsia-600',
+      activeTextColor: 'text-fuchsia-700',
+      activeBgColor: 'bg-fuchsia-50/40',
     },
     {
       id: 'gitops',
@@ -1267,6 +1276,18 @@ export const GitPage: React.FC = () => {
               )}
 
               {/* TAB 4: GITOPS & ARGOCD BRIDGE */}
+              {activeTab === 'merge' && selectedRepo && (
+                <MergePanel
+                  key={String(selectedRepo.id || selectedRepo.name)}
+                  integrationId={selectedIntegrationId || integrations[0]?._id || ''}
+                  repo={selectedRepo}
+                  branches={branches}
+                  canManage={canManageRepos}
+                  onPipelinesChanged={() => loadRepoDetails(selectedRepo)}
+                  onShowPipelines={() => setActiveTab('pipelines')}
+                />
+              )}
+
               {activeTab === 'gitops' && (
                 <div className="space-y-4 text-xs">
 
