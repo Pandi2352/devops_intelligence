@@ -311,7 +311,7 @@ export const LogViewer: React.FC<LogViewerProps> = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && source === 'history' && load()}
-            placeholder={source === 'history' ? 'Search text (Enter to query Loki)' : 'Search in logs'}
+            placeholder={source === 'history' ? 'Search text (Enter to query Loki)' : 'Search in logs (text, or regex with .*)'}
             aria-label="Search logs"
             className="w-full h-8 pl-7 pr-16 rounded-md border border-slate-200 bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
           />

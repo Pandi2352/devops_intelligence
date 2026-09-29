@@ -143,6 +143,7 @@ export const CreateRepoModal: React.FC<CreateRepoModalProps> = ({ integrations, 
             id="repo-account"
             size="md"
             fullWidth
+            placeholder="Select the GitLab account to create it in"
             value={values.integrationId}
             onChange={(v) => setValue('integrationId', v)}
             invalid={Boolean(errors.integrationId)}
@@ -176,6 +177,7 @@ export const CreateRepoModal: React.FC<CreateRepoModalProps> = ({ integrations, 
               }}
               invalid={Boolean(errors.path)}
               maxLength={100}
+              placeholder="e.g. kubeorbit-demo-api"
               mono
             />
           </FormField>
@@ -186,7 +188,7 @@ export const CreateRepoModal: React.FC<CreateRepoModalProps> = ({ integrations, 
             id="repo-description"
             value={values.description}
             onChange={(e) => setValue('description', e.target.value)}
-            placeholder="Optional"
+            placeholder="Optional, e.g. Payments API used by the checkout team"
             maxLength={500}
           />
         </FormField>
@@ -209,6 +211,7 @@ export const CreateRepoModal: React.FC<CreateRepoModalProps> = ({ integrations, 
             id="repo-template"
             size="md"
             fullWidth
+            placeholder="Choose starter code or an empty repository"
             value={values.template}
             onChange={(v) => setValue('template', v)}
             options={[
@@ -229,6 +232,7 @@ export const CreateRepoModal: React.FC<CreateRepoModalProps> = ({ integrations, 
               value={values.commitMessage}
               onChange={(e) => setValue('commitMessage', e.target.value)}
               maxLength={200}
+              placeholder="e.g. chore: initial commit from DevOps Intelligence"
               mono
             />
           </FormField>

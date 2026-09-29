@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { PAGE_SIZE_OPTIONS } from '../../hooks/useListQuery';
 import { Dropdown } from './Dropdown';
@@ -12,6 +12,8 @@ interface PaginationProps {
   pageSizeOptions?: number[];
   itemLabel?: string;
   className?: string;
+  /** Smaller layout for modals and side panels: no rows selector unless onPageSizeChange is given. */
+  compact?: boolean;
 }
 
 // Page numbers with ellipses, e.g. 1 … 4 5 6 … 12
@@ -39,15 +41,22 @@ export const Pagination: React.FC<PaginationProps> = ({
   pageSizeOptions = PAGE_SIZE_OPTIONS,
   itemLabel = 'items',
   className = '',
+  compact = false,
 }) => {
+  const [jump, setJump] = useState('');
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
+  const goTo = () => {
+    const n = Number(jump);
+    if (Number.isInteger(n) && n >= 1 && n <= totalPages) onPageChange(n);
+    setJump('');
+  };
 
   return (
     <nav
       aria-label="Pagination"
-      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600 ${className}`}
+      className={`flex flex-col sm:flex-row sm:items-center justify-between ${compact ? 'gap-2 text-[11px]' : 'gap-3 text-xs'} text-slate-600 ${className}`}
     >
       <div className="flex items-center gap-3 flex-wrap">
         <span>
@@ -130,6 +139,29 @@ export const Pagination: React.FC<PaginationProps> = ({
           >
             <ChevronsRight size={14} />
           </button>
+          {totalPages > 7 && (
+            <form
+              className="flex items-center gap-1 ml-1"
+              onSubmit={(e) => {
+                e.preventDefault();
+                goTo();
+              }}
+            >
+              <label htmlFor={`page-jump-${itemLabel}`} className="text-slate-500">
+                Go to
+              </label>
+              <input
+                id={`page-jump-${itemLabel}`}
+                inputMode="numeric"
+                value={jump}
+                onChange={(e) => setJump(e.target.value.replace(/[^0-9]/g, ''))}
+                onBlur={() => jump && goTo()}
+                placeholder={`1–${totalPages}`}
+                aria-label={`Go to page (1 to ${totalPages})`}
+                className="h-7 w-14 px-1.5 rounded-md border border-slate-200 bg-white text-center focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+              />
+            </form>
+          )}
         </div>
       )}
     </nav>

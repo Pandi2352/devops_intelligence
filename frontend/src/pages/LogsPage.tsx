@@ -5,6 +5,8 @@ import { ScopeBar } from '../components/observability/ScopeBar';
 import { LogViewer } from '../components/observability/LogViewer';
 import { PodDetailsModal, StatusPill } from '../components/observability/PodDetailsModal';
 import { useObservabilityScope } from '../hooks/useObservabilityScope';
+import { usePagination } from '../hooks/usePagination';
+import { Pagination } from '../components/common/Pagination';
 import { sortEnvironments } from '../utils/project';
 import { formatRelativeTime } from '../utils/format';
 import { formatBytes, formatCores, podTone } from '../utils/observability';
@@ -14,6 +16,7 @@ export const LogsPage: React.FC = () => {
   const [details, setDetails] = useState<string | null>(null);
 
   const problems = useMemo(() => (scope.pods || []).filter((p) => podTone(p.status, p.readyCount === p.containerCount) === 'bad' || p.problem), [scope.pods]);
+  const podPager = usePagination(scope.pods || [], 15, `${scope.cluster}|${scope.namespace}`);
   const projectsWithEnvs = (scope.scopes?.projects || []).filter((p) => p.environments.length);
 
   return (
@@ -107,7 +110,7 @@ export const LogsPage: React.FC = () => {
                   </li>
                 );
               })}
-              {(scope.pods || []).map((p) => {
+              {podPager.pageItems.map((p) => {
                 const active = scope.target === `pod:${p.name}`;
                 return (
                   <li key={p.name} className={active ? 'bg-sky-50' : 'hover:bg-slate-50'}>
@@ -138,6 +141,11 @@ export const LogsPage: React.FC = () => {
               })}
               {scope.pods && scope.pods.length === 0 && <li className="px-3 py-4 text-xs text-slate-500">No pods in this namespace.</li>}
             </ul>
+            {podPager.total > podPager.pageSize && (
+              <div className="px-3 py-2 border-t border-slate-200">
+                <Pagination compact page={podPager.page} pageSize={podPager.pageSize} total={podPager.total} onPageChange={podPager.setPage} itemLabel="pods" />
+              </div>
+            )}
           </aside>
 
           <LogViewer

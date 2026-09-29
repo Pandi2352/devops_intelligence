@@ -1,24 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Users,
   Plus,
   HelpCircle,
   Search,
   Download,
   Trash2,
-  CheckCircle2,
-  Shield,
-  Layers,
   Server,
   Lock,
   ChevronRight,
-  X,
   RefreshCw,
   Folder,
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Dropdown } from '../components/common/Dropdown';
+import { Pagination } from '../components/common/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 const PERMISSION_GROUPS = [
   { value: 'developer', label: 'Developer Group', sublabel: 'Access assigned project workloads & build pipelines' },
@@ -98,6 +95,7 @@ export const UserPermissionsPage: React.FC = () => {
   const [createdInfo, setCreatedInfo] = useState<{ email: string; temporaryPassword?: string; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [roleFilter, setRoleFilter] = useState<string>('');
   const [viewMode, setViewMode] = useState<'list' | 'add'>('list');
 
   // Add User Form State (Matches Devtron Screenshot 4 & 5)
@@ -294,10 +292,33 @@ export const UserPermissionsPage: React.FC = () => {
     setErrorMessage('');
   };
 
-  const filteredUsers = users.filter((u) =>
-    u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  const needle = searchQuery.trim().toLowerCase();
+  const filteredUsers = users.filter(
+    (u) =>
+      (!needle || u.email.toLowerCase().includes(needle) || u.name?.toLowerCase().includes(needle)) &&
+      (!roleFilter || (roleFilter === 'superadmin' ? u.role === 'superadmin' || u.isSuperAdmin : u.role === roleFilter))
   );
+  const pager = usePagination(filteredUsers, 10, `${needle}|${roleFilter}`);
+
+  // Export what is on screen (all matching users, not only this page).
+  const exportCsv = () => {
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [
+      ['email', 'name', 'role', 'project permissions'],
+      ...filteredUsers.map((u) => [
+        u.email,
+        u.name,
+        u.isSuperAdmin ? 'superadmin' : u.role,
+        (u.directPermissions || []).map((d) => `${d.project}/${d.environment}: ${d.permission}`).join('; '),
+      ]),
+    ];
+    const url = URL.createObjectURL(new Blob([rows.map((r) => r.map(cell).join(',')).join('\n')], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `users-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -366,18 +387,37 @@ export const UserPermissionsPage: React.FC = () => {
               <Search size={15} className="absolute left-3 top-2.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search user..."
+                placeholder="Search users by name or email"
+                aria-label="Search users"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-md text-xs text-slate-900 placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
-            <button
-              className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md border border-slate-200 transition-colors"
-              title="Download CSV"
-            >
-              <Download size={15} />
-            </button>
+            <div className="flex items-center gap-2">
+              <Dropdown<string>
+                ariaLabel="Filter by role"
+                value={roleFilter}
+                onChange={setRoleFilter}
+                options={[
+                  { value: '', label: 'All roles' },
+                  { value: 'superadmin', label: 'Super Admin' },
+                  { value: 'devops', label: 'DevOps' },
+                  { value: 'developer', label: 'Developer' },
+                  { value: 'viewer', label: 'Viewer' },
+                ]}
+              />
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={!filteredUsers.length}
+                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md border border-slate-200 transition-colors disabled:opacity-40"
+                title="Download the matching users as CSV"
+                aria-label="Download CSV"
+              >
+                <Download size={15} />
+              </button>
+            </div>
           </div>
 
           {/* Users Table matching Screenshot 3 */}
@@ -385,9 +425,6 @@ export const UserPermissionsPage: React.FC = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
-                  <th className="py-2.5 px-4 w-10">
-                    <input type="checkbox" className="rounded-md border-slate-300" />
-                  </th>
                   <th className="py-2.5 px-4">Email</th>
                   <th className="py-2.5 px-4">Role / Scope</th>
                   <th className="py-2.5 px-4">Assigned Projects</th>
@@ -398,20 +435,17 @@ export const UserPermissionsPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
                       No users found. Click <strong>+ Add Users</strong> to invite a team member.
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((u) => {
+                  pager.pageItems.map((u) => {
                     const initial = (u.email?.[0] || 'U').toUpperCase();
                     const isSuper = u.role === 'superadmin' || u.isSuperAdmin;
 
                     return (
                       <tr key={u._id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3 px-4">
-                          <input type="checkbox" className="rounded-md border-slate-300" />
-                        </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
                             <div
@@ -477,6 +511,18 @@ export const UserPermissionsPage: React.FC = () => {
                 )}
               </tbody>
             </table>
+            {filteredUsers.length > 0 && (
+              <div className="border-t border-slate-200 px-4 py-2.5">
+                <Pagination
+                  page={pager.page}
+                  pageSize={pager.pageSize}
+                  total={pager.total}
+                  onPageChange={pager.setPage}
+                  onPageSizeChange={pager.setPageSize}
+                  itemLabel="users"
+                />
+              </div>
+            )}
           </div>
         </>
       )}
@@ -766,6 +812,7 @@ export const UserPermissionsPage: React.FC = () => {
                               <label className="block text-[11px] text-slate-600 mb-1">Resource Name</label>
                               <input
                                 type="text"
+                                placeholder="All resources, or a name like demo-api"
                                 value={kRow.resourceName}
                                 onChange={(e) =>
                                   handleUpdateK8sPermission(kIdx, 'resourceName', e.target.value)

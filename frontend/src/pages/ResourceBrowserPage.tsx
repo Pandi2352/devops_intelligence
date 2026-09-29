@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ChevronDown, ChevronRight, Info, RefreshCw, ScrollText, Search } from 'lucide-react';
 import { Dropdown, DropdownOption } from '../components/common/Dropdown';
+import { Pagination } from '../components/common/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import { PodDetailsModal, StatusPill } from '../components/observability/PodDetailsModal';
 import { ResourceDetailsModal } from '../components/observability/ResourceDetailsModal';
 import { NamespaceInfo, PodInfo, ResourceList, Scopes, observabilityApi } from '../api/observabilityApi';
@@ -154,6 +156,11 @@ export const ResourceBrowserPage: React.FC = () => {
     });
   }, [list, needle, onlyProblems, sort]);
 
+  // Paged after filtering and sorting; a new kind, namespace, search or filter starts at page 1 (auto-refresh keeps the page).
+  const pageKey = `${cluster}|${kind}|${namespace}|${query}|${onlyProblems}`;
+  const podPager = usePagination(podRows, 20, pageKey);
+  const resourcePager = usePagination(resourceRows, 20, pageKey);
+
   const podStats = useMemo(() => {
     const bad = pods.filter((p) => podTone(p.status, p.readyCount === p.containerCount) === 'bad' || p.problem).length;
     return { total: pods.length, running: pods.filter((p) => p.status === 'Running').length, bad, restarts: pods.reduce((n, p) => n + p.restarts, 0) };
@@ -183,6 +190,7 @@ export const ResourceBrowserPage: React.FC = () => {
           value={cluster}
           onChange={(c) => update({ cluster: c, namespace: null })}
           options={(scopes?.clusters || []).map((c) => ({ value: c.name, label: c.name, sublabel: c.status }))}
+          placeholder={scopes ? 'No clusters connected' : 'Loading clusters…'}
           buttonClassName="font-bold min-w-[130px]"
         />
         <div className="flex-1" />
@@ -192,6 +200,8 @@ export const ResourceBrowserPage: React.FC = () => {
           value={namespaces.some((n) => n.name === namespace && n.project) ? namespace : ''}
           onChange={(ns) => update({ namespace: ns || null })}
           options={envOptions}
+          placeholder="Any project environment"
+          searchPlaceholder="Search project or environment"
           searchable
           menuMinWidth={260}
         />
@@ -203,6 +213,8 @@ export const ResourceBrowserPage: React.FC = () => {
           value={namespace}
           onChange={(ns) => update({ namespace: ns === 'all' ? null : ns })}
           options={nsOptions}
+          placeholder="All namespaces"
+          searchPlaceholder="Search namespaces"
           searchable
           disabled={isClusterScoped}
           menuMinWidth={280}
@@ -223,7 +235,7 @@ export const ResourceBrowserPage: React.FC = () => {
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-2 text-slate-400" aria-hidden />
             <input
-              placeholder="Jump to kind"
+              placeholder="Jump to kind (e.g. Services)"
               value={jump}
               onChange={(e) => setJump(e.target.value)}
               onKeyDown={(e) => {
@@ -280,7 +292,7 @@ export const ResourceBrowserPage: React.FC = () => {
             <div className="relative w-full max-w-xs">
               <Search size={14} className="absolute left-2.5 top-2 text-slate-400" aria-hidden />
               <input
-                placeholder={`Search ${KIND_LABEL[kind] || kind}`}
+                placeholder={kind === 'pod' ? 'Search pods, namespaces, nodes or status' : `Search ${KIND_LABEL[kind] || kind} by name, namespace or value`}
                 value={query}
                 onChange={(e) => update({ q: e.target.value || null })}
                 aria-label="Search"
@@ -358,7 +370,7 @@ export const ResourceBrowserPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : kind === 'pod' ? (
-                  podRows.map((p) => (
+                  podPager.pageItems.map((p) => (
                     <tr key={`${p.namespace}/${p.name}`} onClick={() => setPodDetails({ name: p.name, namespace: p.namespace })} className="hover:bg-sky-50/50 cursor-pointer align-top">
                       <td className="py-2 px-3">
                         <div className="font-bold text-sky-700 font-mono">{p.name}</div>
@@ -404,7 +416,7 @@ export const ResourceBrowserPage: React.FC = () => {
                     </tr>
                   ))
                 ) : (
-                  resourceRows.map((r) => (
+                  resourcePager.pageItems.map((r) => (
                     <tr key={`${r.namespace}/${r.name}`} onClick={() => setResourceDetails({ name: r.name, namespace: r.namespace })} className="hover:bg-sky-50/50 cursor-pointer">
                       <td className="py-2 px-3 font-bold text-sky-700 font-mono">
                         {r.name}
@@ -431,6 +443,31 @@ export const ResourceBrowserPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          {count > 0 && (
+            <div className="px-3 py-2 border-t border-slate-200 bg-white shrink-0">
+              {kind === 'pod' ? (
+                <Pagination
+                  page={podPager.page}
+                  pageSize={podPager.pageSize}
+                  total={podPager.total}
+                  onPageChange={podPager.setPage}
+                  onPageSizeChange={podPager.setPageSize}
+                  pageSizeOptions={[20, 50, 100]}
+                  itemLabel="pods"
+                />
+              ) : (
+                <Pagination
+                  page={resourcePager.page}
+                  pageSize={resourcePager.pageSize}
+                  total={resourcePager.total}
+                  onPageChange={resourcePager.setPage}
+                  onPageSizeChange={resourcePager.setPageSize}
+                  pageSizeOptions={[20, 50, 100]}
+                  itemLabel={(KIND_LABEL[kind] || kind).toLowerCase()}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
 

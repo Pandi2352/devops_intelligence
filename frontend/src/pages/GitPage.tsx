@@ -12,7 +12,6 @@ import {
   Layers,
   ArrowRight,
   ShieldCheck,
-  Terminal,
   Activity,
   Workflow,
   Play,
@@ -22,14 +21,11 @@ import {
   Check,
   AlertTriangle,
   X,
-  Package,
   Radio,
   ArrowUpRight,
   GitCommit,
   Sparkles,
-  Loader2,
   Plus,
-  KeyRound,
 } from 'lucide-react';
 import { gitApi } from '../api/gitApi';
 import { argoApi } from '../api/argoApi';
@@ -37,6 +33,8 @@ import { GitIntegration, GitRepo, PipelineRun, PipelineStage, GitCommit as GitCo
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ScrollableTabs, TabItem } from '../components/common/ScrollableTabs';
 import { MergePanel } from '../components/git/MergePanel';
+import { Pagination } from '../components/common/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import { Dropdown } from '../components/common/Dropdown';
 import { GitLabIcon } from '../components/common/BrandIcons';
 import { useNavigate } from 'react-router-dom';
@@ -380,6 +378,14 @@ export const GitPage: React.FC = () => {
     return true;
   });
 
+  // Paging: the repo list resets on a new search / filter / account; the detail lists reset on a new repo,
+  // not on the 5-second pipeline refresh.
+  const repoKey = selectedRepo ? String(selectedRepo.id || selectedRepo.name) : '';
+  const repoPage = usePagination(filteredRepos, 10, `${searchQuery}|${visibilityFilter}|${selectedIntegrationId}`);
+  const pipelinePage = usePagination(pipelines, 5, repoKey);
+  const commitPage = usePagination(commits, 10, repoKey);
+  const branchPage = usePagination(branches, 10, repoKey);
+
   const publicCount = repos.filter((r) => !r.private).length;
   const privateCount = repos.filter((r) => r.private).length;
 
@@ -602,7 +608,7 @@ export const GitPage: React.FC = () => {
             <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search repositories..."
+              placeholder="Search repositories by name, path or description"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-md text-xs text-slate-900 placeholder:text-slate-400 focus:border-sky-500 font-mono transition-colors"
@@ -678,13 +684,15 @@ export const GitPage: React.FC = () => {
                 )}
               </div>
             ) : (
-              filteredRepos.map((repo) => {
+              repoPage.pageItems.map((repo) => {
                 const isSelected = selectedRepo?.name === repo.name;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={repo.id || repo.name}
                     onClick={() => setSelectedRepo(repo)}
-                    className={`p-3.5 bg-white border rounded-md cursor-pointer transition-all ${
+                    aria-pressed={isSelected}
+                    className={`block w-full text-left p-3.5 bg-white border rounded-md cursor-pointer transition-all ${
                       isSelected
                         ? 'border-sky-600 bg-sky-50/25 ring-1 ring-sky-600'
                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
@@ -730,11 +738,22 @@ export const GitPage: React.FC = () => {
                         Inspect details →
                       </span>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}
           </div>
+          {!isLoadingRepos && repoPage.total > 0 && (
+            <Pagination
+              compact
+              page={repoPage.page}
+              pageSize={repoPage.pageSize}
+              total={repoPage.total}
+              onPageChange={repoPage.setPage}
+              onPageSizeChange={repoPage.setPageSize}
+              itemLabel="repositories"
+            />
+          )}
         </div>
 
         {/* Right Column: Active Repository Live Details & Tabs */}
@@ -850,6 +869,8 @@ export const GitPage: React.FC = () => {
                         ? selectedRepo.sshUrl
                         : selectedRepo.cloneUrl
                     }
+                    placeholder="Clone URL not available"
+                    aria-label="Git clone URL"
                     className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-md font-mono text-xs text-slate-800 focus:border-sky-500"
                   />
                   <button
@@ -922,8 +943,9 @@ export const GitPage: React.FC = () => {
                       </button>
                     </div>
                   ) : (
+                    <>
                     <div className="space-y-3 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
-                      {pipelines.map((p) => {
+                      {pipelinePage.pageItems.map((p) => {
                         const isSuccess = p.status === 'success';
                         const isFailed = p.status === 'failed';
                         const isRunning = p.status === 'running';
@@ -1108,6 +1130,16 @@ export const GitPage: React.FC = () => {
                         );
                       })}
                     </div>
+                    <Pagination
+                      compact
+                      page={pipelinePage.page}
+                      pageSize={pipelinePage.pageSize}
+                      total={pipelinePage.total}
+                      onPageChange={pipelinePage.setPage}
+                      onPageSizeChange={pipelinePage.setPageSize}
+                      itemLabel="pipelines"
+                    />
+                    </>
                   )}
                 </div>
               )}
@@ -1140,8 +1172,9 @@ export const GitPage: React.FC = () => {
                       No commits found in repository {selectedRepo.name}.
                     </div>
                   ) : (
+                    <>
                     <div className="space-y-2 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
-                      {commits.map((c) => (
+                      {commitPage.pageItems.map((c) => (
                         <div
                           key={c.id}
                           className="p-3 bg-slate-50/70 border border-slate-200 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-colors"
@@ -1185,6 +1218,16 @@ export const GitPage: React.FC = () => {
                         </div>
                       ))}
                     </div>
+                    <Pagination
+                      compact
+                      page={commitPage.page}
+                      pageSize={commitPage.pageSize}
+                      total={commitPage.total}
+                      onPageChange={commitPage.setPage}
+                      onPageSizeChange={commitPage.setPageSize}
+                      itemLabel="commits"
+                    />
+                    </>
                   )}
                 </div>
               )}
@@ -1215,8 +1258,9 @@ export const GitPage: React.FC = () => {
                       No branches found for {selectedRepo.name}.
                     </div>
                   ) : (
+                    <>
                     <div className="space-y-2 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
-                      {branches.map((b) => (
+                      {branchPage.pageItems.map((b) => (
                         <div
                           key={b.name}
                           className="p-3 bg-white border border-slate-200 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-colors"
@@ -1271,6 +1315,16 @@ export const GitPage: React.FC = () => {
                         </div>
                       ))}
                     </div>
+                    <Pagination
+                      compact
+                      page={branchPage.page}
+                      pageSize={branchPage.pageSize}
+                      total={branchPage.total}
+                      onPageChange={branchPage.setPage}
+                      onPageSizeChange={branchPage.setPageSize}
+                      itemLabel="branches"
+                    />
+                    </>
                   )}
                 </div>
               )}
@@ -1571,6 +1625,8 @@ export const GitPage: React.FC = () => {
                   type="text"
                   readOnly
                   value={selectedRepo.fullName}
+                  placeholder="group/repository"
+                  aria-label="Target repository"
                   className="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-md font-mono text-xs text-slate-700"
                 />
               </div>
@@ -1580,6 +1636,10 @@ export const GitPage: React.FC = () => {
                   label="Branch or Tag Reference"
                   value={triggerBranch}
                   onChange={setTriggerBranch}
+                  placeholder="Select the branch to run the pipeline on"
+                  searchable
+                  searchPlaceholder="Filter branches, e.g. dev"
+                  fullWidth
                   options={
                     branches.length > 0
                       ? branches.map((b) => ({

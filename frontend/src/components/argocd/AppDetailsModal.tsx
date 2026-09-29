@@ -3,6 +3,8 @@ import { AlertTriangle, ExternalLink, Loader2, OctagonX, RefreshCw, RotateCcw, R
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Pagination } from '../common/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 import { argoAppsApi, ArgoAppDetail, ArgoDiffItem, ArgoEvent, ArgoTreeNode } from '../../api/argoAppsApi';
 import { getApiErrorMessage } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
@@ -136,10 +138,13 @@ const DiffView: React.FC<{ name: string }> = ({ name }) => {
       .catch((err) => setError(getApiErrorMessage(err, 'Could not load the diff')));
   }, [name]);
 
+  const all = items || [];
+  const changed = all.filter((i) => i.state !== 'in-sync');
+  const visible = showAll ? all : changed;
+  const pager = usePagination(visible, 10, showAll);
+
   if (error) return <ErrorBox message={error} />;
   if (!items) return <Loading label="Comparing Git with the cluster…" />;
-  const changed = items.filter((i) => i.state !== 'in-sync');
-  const visible = showAll ? items : changed;
 
   return (
     <div className="space-y-3">
@@ -158,7 +163,7 @@ const DiffView: React.FC<{ name: string }> = ({ name }) => {
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show in-sync resources
         </label>
       </div>
-      {visible.map((item) => (
+      {pager.pageItems.map((item) => (
         <div key={`${item.kind}/${item.namespace}/${item.name}`} className="border border-slate-200 rounded-md overflow-hidden">
           <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
             <span className="text-xs">
@@ -189,6 +194,9 @@ const DiffView: React.FC<{ name: string }> = ({ name }) => {
           )}
         </div>
       ))}
+      {pager.total > pager.pageSize && (
+        <Pagination compact page={pager.page} pageSize={pager.pageSize} total={pager.total} onPageChange={pager.setPage} itemLabel="resources" />
+      )}
     </div>
   );
 };
@@ -215,6 +223,8 @@ const HistoryView: React.FC<{ app: ArgoAppDetail; canManage: boolean; onRolledBa
     }
   };
 
+  const pager = usePagination(app.history, 10, app.name);
+
   if (app.history.length === 0) return <p className="text-xs text-slate-500 py-6 text-center">No syncs recorded yet.</p>;
 
   return (
@@ -239,7 +249,9 @@ const HistoryView: React.FC<{ app: ArgoAppDetail; canManage: boolean; onRolledBa
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {app.history.map((h, idx) => (
+            {pager.pageItems.map((h, i) => {
+              const idx = (pager.page - 1) * pager.pageSize + i; // position in the full history: 0 = current
+              return (
               <tr key={h.id}>
                 <td className="px-3 py-2 text-slate-500">{h.id}</td>
                 <td className="px-3 py-2">
@@ -267,10 +279,14 @@ const HistoryView: React.FC<{ app: ArgoAppDetail; canManage: boolean; onRolledBa
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
+      {pager.total > pager.pageSize && (
+        <Pagination compact className="mt-2" page={pager.page} pageSize={pager.pageSize} total={pager.total} onPageChange={pager.setPage} itemLabel="syncs" />
+      )}
       <ConfirmDialog
         isOpen={target !== null}
         title={`Roll back ${app.name} to #${target}?`}
@@ -298,9 +314,11 @@ const EventsView: React.FC<{ name: string }> = ({ name }) => {
       .catch((err) => setError(getApiErrorMessage(err, 'Could not load events')));
   }, [name]);
 
+  const visible = warningsOnly ? (events || []).filter((e) => e.type === 'Warning') : events || [];
+  const pager = usePagination(visible, 10, warningsOnly);
+
   if (error) return <ErrorBox message={error} />;
   if (!events) return <Loading label="Loading events…" />;
-  const visible = warningsOnly ? events.filter((e) => e.type === 'Warning') : events;
 
   return (
     <div className="space-y-2">
@@ -312,7 +330,7 @@ const EventsView: React.FC<{ name: string }> = ({ name }) => {
         <p className="text-xs text-slate-500 py-4 text-center">No events.</p>
       ) : (
         <ul className="divide-y divide-slate-100 border border-slate-200 rounded-md">
-          {visible.map((e, i) => (
+          {pager.pageItems.map((e, i) => (
             <li key={i} className={`px-3 py-2 text-xs ${e.type === 'Warning' ? 'bg-amber-50/60' : ''}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-slate-800">
@@ -332,6 +350,9 @@ const EventsView: React.FC<{ name: string }> = ({ name }) => {
             </li>
           ))}
         </ul>
+      )}
+      {pager.total > pager.pageSize && (
+        <Pagination compact page={pager.page} pageSize={pager.pageSize} total={pager.total} onPageChange={pager.setPage} itemLabel="events" />
       )}
     </div>
   );

@@ -3,6 +3,8 @@ import { AlertTriangle, Check, Copy, ExternalLink, FileCode2 } from 'lucide-reac
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { Pagination } from '../common/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 import { EnvironmentManifests, ManifestResource, ManifestState, projectApi } from '../../api/projectApi';
 import { getApiErrorMessage } from '../../api/client';
 
@@ -70,6 +72,7 @@ export const ManifestsModal: React.FC<{ projectId: string; env: string; onClose:
   const [filePath, setFilePath] = useState('');
   const [resKey, setResKey] = useState('');
   const [side, setSide] = useState<'desired' | 'live'>('desired');
+  const resourcePager = usePagination(data?.resources || [], 12, env);
 
   useEffect(() => {
     projectApi
@@ -190,7 +193,7 @@ export const ManifestsModal: React.FC<{ projectId: string; env: string; onClose:
               {data.resourcesError && <Banner>ArgoCD: {data.resourcesError}</Banner>}
               <div className="grid md:grid-cols-[260px_1fr] gap-3 min-h-[300px]">
                 <ul className="space-y-0.5" aria-label="Resources">
-                  {data.resources.map((r) => (
+                  {resourcePager.pageItems.map((r) => (
                     <li key={resourceKey(r)}>
                       <button
                         type="button"
@@ -209,6 +212,9 @@ export const ManifestsModal: React.FC<{ projectId: string; env: string; onClose:
                   ))}
                   {!data.resources.length && !data.resourcesError && <li className="text-xs text-slate-500">ArgoCD manages no resources for this app yet.</li>}
                 </ul>
+                {resourcePager.total > resourcePager.pageSize && (
+                  <Pagination compact page={resourcePager.page} pageSize={resourcePager.pageSize} total={resourcePager.total} onPageChange={resourcePager.setPage} itemLabel="resources" />
+                )}
                 <div className="min-w-0 space-y-2">
                   {resource && (
                     <>

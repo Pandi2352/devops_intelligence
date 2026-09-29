@@ -20,9 +20,11 @@ import { argoApi } from '../api/argoApi';
 import { gitApi } from '../api/gitApi';
 import { Cluster, ArgoIntegration } from '../types';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isManager } = useAuth();
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [argo, setArgo] = useState<ArgoIntegration | null>(null);
@@ -54,6 +56,8 @@ export const DashboardPage: React.FC = () => {
   if (isLoading) return <LoadingSpinner message="Aggregating DevOps platform telemetry..." />;
 
   const defaultCluster = clusters.find((c) => c.isDefault) || clusters[0];
+  const healthyClusters = clusters.filter((c) => c.status === 'Healthy').length;
+  const argoState = !argo ? 'Not configured' : argo.status === 'Connected' ? 'Online' : argo.status === 'Error' ? 'Error' : 'Not connected';
   const environmentCount = projects.reduce((n, p) => n + p.argoApps.length, 0);
 
   return (
@@ -71,11 +75,15 @@ export const DashboardPage: React.FC = () => {
       {/* KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Active Clusters"
-          value={clusters.length || 1}
-          subtext={defaultCluster ? `Current: ${defaultCluster.name}` : 'Minikube Connected'}
+          label="Clusters"
+          value={clusters.length}
+          subtext={defaultCluster ? `Default: ${defaultCluster.name}` : 'No cluster connectors yet'}
           icon={<Server size={18} />}
-          badge={<Badge label="Ready" variant="healthy" withPulse />}
+          badge={
+            clusters.length ? (
+              <Badge label={`${healthyClusters}/${clusters.length} healthy`} variant={healthyClusters === clusters.length ? 'healthy' : 'degraded'} />
+            ) : undefined
+          }
         />
 
         <StatCard
@@ -88,22 +96,17 @@ export const DashboardPage: React.FC = () => {
 
         <StatCard
           label="ArgoCD GitOps"
-          value={argo?.status === 'Connected' ? 'Online' : 'Configured'}
-          subtext={argo?.version ? `Version: ${argo.version}` : 'Local ArgoCD'}
+          value={argoState}
+          subtext={argo?.version && argo.version !== 'unknown' ? `Version ${argo.version}` : argo ? argo.serverUrl || 'ArgoCD connector' : 'Add it in Connectors → ArgoCD'}
           icon={<Workflow size={18} />}
           iconColor="text-emerald-700 bg-emerald-50 border-emerald-200"
-          badge={
-            <Badge
-              label={argo?.status || 'Active'}
-              variant={argo?.status === 'Connected' ? 'healthy' : 'cyan'}
-            />
-          }
+          badge={argo ? <Badge label={argo.status} variant={argo.status === 'Connected' ? 'healthy' : 'offline'} /> : undefined}
         />
 
         <StatCard
-          label="Git Providers"
+          label="Git connectors"
           value={gitCount}
-          subtext="GitHub & GitLab repositories"
+          subtext={gitCount === 1 ? "GitLab account connected" : "GitLab accounts connected"}
           icon={<GitBranch size={18} />}
           iconColor="text-amber-800 bg-amber-50 border-amber-200"
         />
@@ -116,14 +119,11 @@ export const DashboardPage: React.FC = () => {
           title="Kubernetes Cluster Runtime"
           subtitle="Real-time control plane and node health"
           action={
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/connectors?tab=clusters')}
-              rightIcon={<ArrowRight size={13} />}
-            >
-              Manage
-            </Button>
+            isManager ? (
+              <Button variant="ghost" size="sm" onClick={() => navigate('/connectors?tab=clusters')} rightIcon={<ArrowRight size={13} />}>
+                Manage
+              </Button>
+            ) : undefined
           }
         >
           {defaultCluster ? (
@@ -134,26 +134,26 @@ export const DashboardPage: React.FC = () => {
                     <span className="font-mono text-sm font-bold text-slate-900">
                       {defaultCluster.name}
                     </span>
-                    <Badge label={defaultCluster.status} variant="healthy" withPulse />
+                    <Badge label={defaultCluster.status} variant={defaultCluster.status === 'Healthy' ? 'healthy' : 'offline'} withPulse={defaultCluster.status === 'Healthy'} />
                   </div>
                   <span className="text-xs text-slate-500 mt-0.5 block font-mono">
-                    Type: {defaultCluster.type} • Version: {defaultCluster.version || 'v1.32.2'}
+                    Type: {defaultCluster.type}
+                    {defaultCluster.version && defaultCluster.version !== 'unknown' ? ` • Version: ${defaultCluster.version}` : ''}
                   </span>
                 </div>
                 <div className="text-right font-mono text-xs font-bold text-sky-700">
-                  {defaultCluster.nodeCount} Node (Ready)
+                  {defaultCluster.nodeCount} node{defaultCluster.nodeCount === 1 ? '' : 's'}
                 </div>
               </div>
 
+              {/* Every namespace of the cluster is admin information; others see their environments on Projects. */}
+              {isManager && defaultCluster.namespaces?.length > 0 && (
               <div>
                 <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1.5">
-                  Namespaces Active
+                  Namespaces ({defaultCluster.namespaces.length})
                 </span>
                 <div className="flex flex-wrap gap-1">
-                  {(defaultCluster.namespaces?.length > 0
-                    ? defaultCluster.namespaces
-                    : ['default', 'kube-system', 'kube-public', 'argocd']
-                  ).map((ns) => (
+                  {defaultCluster.namespaces.map((ns) => (
                     <span
                       key={ns}
                       className="px-2 py-0.5 rounded-md text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200"
@@ -163,9 +163,10 @@ export const DashboardPage: React.FC = () => {
                   ))}
                 </div>
               </div>
+              )}
             </div>
           ) : (
-            <div className="text-xs text-slate-500">Scanning local KubeConfig...</div>
+            <div className="text-xs text-slate-500">No cluster connector yet.{isManager ? ' Add one in Connectors → Clusters.' : ''}</div>
           )}
         </Card>
 

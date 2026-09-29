@@ -166,6 +166,7 @@ export const AddEnvironmentModal: React.FC<AddEnvironmentModalProps> = ({ projec
             <FormField id="env-namespace" label="Namespace" required error={errors.namespace}>
               <TextInput
                 id="env-namespace"
+                placeholder={`${project.name}-${values.name || 'uat'}`}
                 mono
                 value={values.namespace}
                 invalid={Boolean(errors.namespace)}
@@ -178,6 +179,7 @@ export const AddEnvironmentModal: React.FC<AddEnvironmentModalProps> = ({ projec
             <FormField id="env-app" label="ArgoCD application" required error={errors.appName}>
               <TextInput
                 id="env-app"
+                placeholder={`${appRepoName}-${values.name || 'uat'}`}
                 mono
                 value={values.appName}
                 invalid={Boolean(errors.appName)}

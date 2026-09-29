@@ -235,6 +235,8 @@ export const EnvironmentsPage: React.FC = () => {
                 ariaLabel="Project"
                 value={projectId}
                 onChange={(id) => setSearchParams({ project: id })}
+                placeholder="Pick a project"
+                searchPlaceholder="Search projects"
                 options={withApps.map((p) => ({ value: p._id, label: p.name, sublabel: `${p.argoApps.length} environment(s)` }))}
                 align="right"
                 buttonClassName="min-w-[180px]"

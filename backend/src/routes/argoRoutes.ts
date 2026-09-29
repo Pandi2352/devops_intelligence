@@ -49,7 +49,7 @@ router.post('/config', authenticate, canManageConnectors, updateArgoConfig);
 router.get('/applications', authenticate, requireManager, listArgoApplications);
 router.post('/applications/:name/sync', authenticate, canManageConnectors, syncArgoApplication);
 
-router.get('/connectors', authenticate, listArgoConnectors);
+router.get('/connectors', authenticate, requireManager, listArgoConnectors);
 router.post('/connectors', authenticate, canManageConnectors, createArgoConnector);
 router.post('/connectors/test', authenticate, canManageConnectors, testArgoConnection);
 router.put('/connectors/:id', authenticate, canManageConnectors, updateArgoConnector);

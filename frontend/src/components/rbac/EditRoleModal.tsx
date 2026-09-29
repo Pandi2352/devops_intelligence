@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -17,27 +18,18 @@ export const EditRoleModal: React.FC<EditRoleModalProps> = ({
   onSave,
 }) => {
   const [role, setRole] = useState<UserRole>(user?.role || 'developer');
-  const [environments, setEnvironments] = useState<string[]>(
-    user?.allowedEnvironments || ['dev']
-  );
   const [isLoading, setIsLoading] = useState(false);
 
   if (!user) return null;
-
-  const toggleEnv = (env: string) => {
-    if (environments.includes(env)) {
-      setEnvironments(environments.filter((e) => e !== env));
-    } else {
-      setEnvironments([...environments, env]);
-    }
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await onSave(user.id, role, environments);
+      await onSave(user.id, role, []);
       onClose();
+    } catch {
+      // onSave already reported the error; keep the dialog open to retry
     } finally {
       setIsLoading(false);
     }
@@ -73,34 +65,20 @@ export const EditRoleModal: React.FC<EditRoleModalProps> = ({
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-            Allowed Deployment Environments
-          </label>
-          <div className="flex gap-2">
-            {['dev', 'staging', 'prod'].map((env) => (
-              <button
-                type="button"
-                key={env}
-                onClick={() => toggleEnv(env)}
-                className={`px-3 py-1.5 rounded-md border text-xs font-semibold uppercase transition-colors ${
-                  environments.includes(env)
-                    ? 'border-sky-600 bg-sky-50 text-sky-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {env}
-              </button>
-            ))}
-          </div>
-        </div>
+        <p className="text-[11px] text-slate-500">
+          Developers and Viewers only get the projects and environments granted in{' '}
+          <Link to="/authorization/users" className="text-sky-700 hover:underline" onClick={onClose}>
+            User Permissions
+          </Link>
+          . Only a Super Admin can give the Super Admin or DevOps role.
+        </p>
 
         <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" variant="primary" isLoading={isLoading}>
-            Save Permissions
+            Save role
           </Button>
         </div>
       </form>

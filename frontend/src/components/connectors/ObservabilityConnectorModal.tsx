@@ -276,6 +276,7 @@ export const ObservabilityConnectorModal: React.FC<ObservabilityConnectorModalPr
             <TextInput
               id="ob-service"
               mono
+              placeholder={DEFAULTS[values.kind].service}
               value={values.service}
               onChange={(e) => update('service', e.target.value.trim())}
               invalid={Boolean(errors.service)}
@@ -286,6 +287,7 @@ export const ObservabilityConnectorModal: React.FC<ObservabilityConnectorModalPr
               <TextInput
                 id="ob-port"
                 mono
+                placeholder={DEFAULTS[values.kind].port}
                 inputMode="numeric"
                 value={values.port}
                 onChange={(e) => update('port', e.target.value.replace(/[^0-9]/g, ''))}
@@ -359,6 +361,7 @@ export const ObservabilityConnectorModal: React.FC<ObservabilityConnectorModalPr
           <FormField id="ob-username" label="Username" required error={errors.username}>
             <TextInput
               id="ob-username"
+              placeholder="admin"
               mono
               autoComplete="off"
               value={values.username}

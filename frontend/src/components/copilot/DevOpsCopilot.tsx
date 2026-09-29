@@ -1,22 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
-import {
-  Bot,
-  Send,
-  Sparkles,
-  AlertTriangle,
-  CheckCircle2,
-  HelpCircle,
-  Shield,
-  Layers,
-  Terminal,
-  Workflow,
-  RotateCcw,
-} from 'lucide-react';
+import { Bot, Send, Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { approvalApi } from '../../api/approvalApi';
+import { projectApi } from '../../api/projectApi';
+import { getApiErrorMessage } from '../../api/client';
 import { Dropdown } from '../common/Dropdown';
 
 interface ChatMessage {
@@ -39,12 +28,23 @@ const DEFAULT_QUESTIONS = [
   'What is the difference between Snyk, SonarQube, and Trivy?',
   'Why do we use yq to generate Kubernetes YAML?',
   'How does ArgoCD GitOps work with our Kubernetes cluster?',
-  'Restart pod for ecommerce-api (Write Query)',
+  'Request a pod restart (needs manager approval)',
 ];
 
 export const DevOpsCopilot: React.FC = () => {
   const { user } = useAuth();
-  const [selectedProject, setSelectedProject] = useState<'ecommerce' | 'dms-backend' | 'payment-service'>('ecommerce');
+  // Only the projects this user can see (the API filters them).
+  const [projects, setProjects] = useState<string[]>([]);
+  const [selectedProject, setSelectedProject] = useState('');
+  useEffect(() => {
+    projectApi
+      .list()
+      .then((list) => {
+        setProjects(list.map((p) => p.name));
+        setSelectedProject((cur) => cur || list[0]?.name || '');
+      })
+      .catch(() => setProjects([]));
+  }, []);
   const [inputMessage, setInputMessage] = useState('');
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -66,6 +66,9 @@ export const DevOpsCopilot: React.FC = () => {
     const q = query.toLowerCase();
 
     // 1. Pod Restart or write operation requiring approval
+    if ((q.includes('restart pod') || q.includes('restart') || q.includes('scale')) && !selectedProject) {
+      return { text: 'You have no project access yet, so there is nothing to request a restart for. Ask a DevOps admin to grant you a project.' };
+    }
     if (q.includes('restart pod') || q.includes('restart') || q.includes('scale')) {
       const isScale = q.includes('scale');
       return {
@@ -74,7 +77,7 @@ export const DevOpsCopilot: React.FC = () => {
           type: 'APPROVAL_PROMPT',
           project: selectedProject,
           action: isScale ? 'SCALE_DEPLOYMENT' : 'RESTART_POD',
-          resource: `pod/${selectedProject}-api-${Math.random().toString(36).substring(2, 7)}`,
+          resource: `deployment/${selectedProject}`,
           reason: 'Memory stabilization and operational restart requested via Copilot',
           status: 'PENDING',
         },
@@ -148,8 +151,6 @@ export const DevOpsCopilot: React.FC = () => {
         action: card.action,
         resource: card.resource,
         reason: card.reason,
-        requestedBy: user?.name || 'Developer User',
-        requestedByRole: user?.role || 'developer',
       });
 
       // Update card status in message
@@ -160,8 +161,16 @@ export const DevOpsCopilot: React.FC = () => {
             : m
         )
       );
-    } catch {
-      alert('Approval request submitted to local queue');
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-${Date.now()}`,
+          sender: 'assistant',
+          text: `Could not submit the approval request: ${getApiErrorMessage(err, 'request failed')}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
     } finally {
       setIsSubmittingApproval(false);
     }
@@ -179,7 +188,7 @@ export const DevOpsCopilot: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm text-slate-900">DevOps Intelligence DevOps Copilot</span>
               <span className="px-1.5 py-0.2 rounded-md bg-sky-100 text-sky-700 text-[10px] font-mono font-bold border border-sky-200">
-                AI Knowledge Engine
+                Guided answers
               </span>
             </div>
             <p className="text-[11px] text-slate-500">Project-Aware Learning Assistant & Approval Dispatcher</p>
@@ -191,16 +200,14 @@ export const DevOpsCopilot: React.FC = () => {
           <span className="text-xs text-slate-500 font-medium" aria-hidden>
             Context Project:
           </span>
-          <Dropdown<'ecommerce' | 'dms-backend' | 'payment-service'>
+          <Dropdown<string>
             ariaLabel="Context project"
             value={selectedProject}
             onChange={setSelectedProject}
             align="right"
-            options={[
-              { value: 'ecommerce', label: 'ecommerce', sublabel: 'Active demo' },
-              { value: 'dms-backend', label: 'dms-backend', sublabel: 'Company DMS' },
-              { value: 'payment-service', label: 'payment-service', sublabel: 'Core API' },
-            ]}
+            placeholder={projects.length ? 'Pick a project' : 'No projects assigned'}
+            disabled={!projects.length}
+            options={projects.map((p) => ({ value: p, label: p }))}
           />
         </div>
       </div>
@@ -289,7 +296,7 @@ export const DevOpsCopilot: React.FC = () => {
       <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2">
         <input
           type="text"
-          placeholder={`Ask anything about ${selectedProject} pipeline, Snyk, ArgoCD, or request pod restart...`}
+          placeholder={`Ask about ${selectedProject ? `${selectedProject}'s` : 'the'} pipeline, Snyk, Trivy, ArgoCD, or request a pod restart`}
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}

@@ -19,6 +19,8 @@ import { Link } from 'react-router-dom';
 import { Button } from '../common/Button';
 import { Dropdown } from '../common/Dropdown';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Pagination } from '../common/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 import { useToast } from '../../context/ToastContext';
 import { getApiErrorMessage } from '../../api/client';
 import { BranchComparison, MergeRequestInfo, MergeResult, PipelineRef, gitApi } from '../../api/gitApi';
@@ -95,6 +97,10 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
 
   const branchOptions = branches.map((b) => ({ value: b.name, label: b.name, sublabel: [b.default && 'default', b.protected && 'protected', b.commit?.title].filter(Boolean).join(' · ') }));
   const sourceBranch = branches.find((b) => b.name === source);
+  const pairKey = `${source}->${target}`;
+  const commitPage = usePagination(compare?.commits || [], 10, pairKey);
+  const filePage = usePagination(compare?.files || [], 10, pairKey);
+  const mrPage = usePagination(openMrs, 5);
 
   const loadCompare = useCallback(async () => {
     if (!source || !target || source === target) {
@@ -232,14 +238,14 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
         <div className="flex flex-wrap items-end gap-2">
           <div className="min-w-[200px] flex-1">
             <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">From (source)</label>
-            <Dropdown fullWidth mono searchable ariaLabel="Source branch" value={source} onChange={(v) => { setSource(v); setResult(null); }} options={branchOptions} menuMinWidth={280} />
+            <Dropdown fullWidth mono searchable placeholder="Select the branch to merge from" searchPlaceholder="Filter branches, e.g. feature/" ariaLabel="Source branch" value={source} onChange={(v) => { setSource(v); setResult(null); }} options={branchOptions} menuMinWidth={280} />
           </div>
           <button type="button" onClick={swap} className="h-9 px-2 rounded-md border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50" aria-label="Swap source and target" title="Swap">
             <ArrowLeftRight size={15} />
           </button>
           <div className="min-w-[200px] flex-1">
             <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Into (target)</label>
-            <Dropdown fullWidth mono searchable ariaLabel="Target branch" value={target} onChange={(v) => { setTarget(v); setResult(null); }} options={branchOptions} menuMinWidth={280} />
+            <Dropdown fullWidth mono searchable placeholder="Select the branch to merge into" searchPlaceholder="Filter branches, e.g. qa" ariaLabel="Target branch" value={target} onChange={(v) => { setTarget(v); setResult(null); }} options={branchOptions} menuMinWidth={280} />
           </div>
           <Button variant="secondary" onClick={loadCompare} disabled={comparing} aria-label="Refresh comparison" className="h-9">
             <RefreshCw size={14} className={comparing ? 'animate-spin' : ''} />
@@ -315,8 +321,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
                 </button>
                 {showCommits && (
                   <div className="grid md:grid-cols-2 gap-3 mt-2">
+                    <div className="space-y-1.5">
                     <ul className="rounded-md border border-slate-200 divide-y divide-slate-100 max-h-56 overflow-auto">
-                      {compare.commits.map((c) => (
+                      {commitPage.pageItems.map((c) => (
                         <li key={c.sha} className="px-2.5 py-1.5 text-[11px]">
                           <a href={c.webUrl} target="_blank" rel="noreferrer" className="font-mono text-sky-700 hover:underline mr-1.5">
                             {c.shortId}
@@ -328,14 +335,23 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
                         </li>
                       ))}
                     </ul>
+                    {commitPage.totalPages > 1 && (
+                      <Pagination compact page={commitPage.page} pageSize={commitPage.pageSize} total={commitPage.total} onPageChange={commitPage.setPage} itemLabel="commits" />
+                    )}
+                    </div>
+                    <div className="space-y-1.5">
                     <ul className="rounded-md border border-slate-200 divide-y divide-slate-100 max-h-56 overflow-auto">
-                      {compare.files.map((f) => (
+                      {filePage.pageItems.map((f) => (
                         <li key={f.path} className="px-2.5 py-1.5 text-[11px] font-mono flex gap-2">
                           <span className={`w-14 shrink-0 font-sans font-semibold ${f.status === 'added' ? 'text-emerald-700' : f.status === 'deleted' ? 'text-rose-700' : 'text-slate-500'}`}>{f.status}</span>
                           <span className="truncate text-slate-800">{f.path}</span>
                         </li>
                       ))}
                     </ul>
+                    {filePage.totalPages > 1 && (
+                      <Pagination compact page={filePage.page} pageSize={filePage.pageSize} total={filePage.total} onPageChange={filePage.setPage} itemLabel="files" />
+                    )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -441,7 +457,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
           <p className="px-4 py-4 text-xs text-slate-500">No open merge requests.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {openMrs.map((mr) => {
+            {mrPage.pageItems.map((mr) => {
               const st = MR_STATUS[mr.status] || { label: mr.status, tone: 'text-slate-500' };
               return (
                 <li key={mr.iid} className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -475,6 +491,19 @@ export const MergePanel: React.FC<MergePanelProps> = ({ integrationId, repo, bra
               );
             })}
           </ul>
+        )}
+        {mrPage.total > mrPage.pageSize && (
+          <div className="px-4 py-2 border-t border-slate-100">
+            <Pagination
+              compact
+              page={mrPage.page}
+              pageSize={mrPage.pageSize}
+              total={mrPage.total}
+              onPageChange={mrPage.setPage}
+              onPageSizeChange={mrPage.setPageSize}
+              itemLabel="merge requests"
+            />
+          </div>
         )}
       </section>
 

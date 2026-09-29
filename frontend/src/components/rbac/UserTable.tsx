@@ -4,6 +4,10 @@ import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
 import { Edit3 } from 'lucide-react';
 
+// The users API also returns each account's project permissions.
+type Grant = { project: string; environment: string; permission: string };
+const permsOf = (u: User): Grant[] => (u as User & { directPermissions?: Grant[] }).directPermissions || [];
+
 interface UserTableProps {
   users: User[];
   onEditRole: (user: User) => void;
@@ -18,8 +22,8 @@ export const UserTable: React.FC<UserTableProps> = ({ users, onEditRole, canMana
           <tr>
             <th className="px-4 py-2.5">Member</th>
             <th className="px-4 py-2.5">Role</th>
-            <th className="px-4 py-2.5">Allowed Clusters</th>
-            <th className="px-4 py-2.5">Allowed Environments</th>
+            <th className="px-4 py-2.5">Project access</th>
+            <th className="px-4 py-2.5">Status</th>
             <th className="px-4 py-2.5 text-right">Actions</th>
           </tr>
         </thead>
@@ -42,20 +46,27 @@ export const UserTable: React.FC<UserTableProps> = ({ users, onEditRole, canMana
                   }
                 />
               </td>
-              <td className="px-4 py-3 font-mono text-xs text-slate-700">
-                {u.allowedClusters.join(', ')}
+              <td className="px-4 py-3">
+                {u.role === 'superadmin' || u.role === 'devops' ? (
+                  <span className="text-[11px] text-slate-500">all projects (admin role)</span>
+                ) : permsOf(u).length ? (
+                  <div className="flex flex-wrap gap-1">
+                    {permsOf(u).map((p, i) => (
+                      <span
+                        key={`${p.project}-${p.environment}-${i}`}
+                        className="px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-slate-100 text-slate-700 border border-slate-200"
+                        title={p.permission}
+                      >
+                        {p.project === '*' ? 'all projects' : p.project} · {p.environment === 'all' ? 'all envs' : p.environment} · {p.permission}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-amber-700">no project access yet</span>
+                )}
               </td>
               <td className="px-4 py-3">
-                <div className="flex gap-1">
-                  {u.allowedEnvironments.map((env) => (
-                    <span
-                      key={env}
-                      className="px-1.5 py-0.5 rounded-md text-[10px] font-mono uppercase bg-slate-100 text-slate-700 border border-slate-200"
-                    >
-                      {env}
-                    </span>
-                  ))}
-                </div>
+                <Badge label={u.isActive === false ? 'disabled' : 'active'} variant={u.isActive === false ? 'offline' : 'healthy'} />
               </td>
               <td className="px-4 py-3 text-right">
                 {canManage && (

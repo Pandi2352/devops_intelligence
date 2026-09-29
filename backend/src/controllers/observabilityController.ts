@@ -51,8 +51,9 @@ export const getScopes = async (_req: AuthRequest, res: Response): Promise<void>
       Project.find({}, { name: 1, argoApps: 1, kubernetesMappings: 1 }).sort({ name: 1 }).then((all) => all.filter((p) => projectLevel(_req.user, p.name) >= 1)),
       ObservabilityIntegration.find({ isActive: true }, { kind: 1, name: 1, publicUrl: 1, status: 1 }),
     ]);
+    const usedClusters = new Set(projects.map((p) => p.kubernetesMappings?.[0]?.clusterName).filter(Boolean));
     res.json({
-      clusters: clusters.map((c) => ({ name: c.name, isDefault: c.isDefault, status: c.status })),
+      clusters: clusters.filter((c) => isManager(_req.user) || usedClusters.has(c.name)).map((c) => ({ name: c.name, isDefault: c.isDefault, status: c.status })),
       projects: projects.map((p) => ({
         id: String(p._id),
         name: p.name,

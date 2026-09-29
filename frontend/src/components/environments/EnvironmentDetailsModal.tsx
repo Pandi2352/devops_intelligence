@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, ExternalLink, Loader2, Workflow } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 import { environmentApi, EnvironmentDetails, EnvironmentView } from '../../api/environmentApi';
 import { getApiErrorMessage } from '../../api/client';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
@@ -34,6 +36,8 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 // What ArgoCD knows about one environment: resources it manages, sync history and the last operation.
 export const EnvironmentDetailsModal: React.FC<EnvironmentDetailsModalProps> = ({ projectId, env, onClose }) => {
   const [details, setDetails] = useState<EnvironmentDetails | null>(null);
+  const resourcePager = usePagination(details?.resources || [], 10, env.key);
+  const historyPager = usePagination(details?.history || [], 8, env.key);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -109,7 +113,7 @@ export const EnvironmentDetailsModal: React.FC<EnvironmentDetailsModalProps> = (
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {details.resources.map((r) => (
+                  {resourcePager.pageItems.map((r) => (
                     <tr key={`${r.kind}/${r.name}`}>
                       <td className="px-3 py-1.5 text-slate-700">{r.kind}</td>
                       <td className="px-3 py-1.5 font-mono text-slate-900">{r.name}</td>
@@ -122,6 +126,9 @@ export const EnvironmentDetailsModal: React.FC<EnvironmentDetailsModalProps> = (
                 </tbody>
               </table>
             </div>
+            {resourcePager.total > resourcePager.pageSize && (
+              <Pagination compact page={resourcePager.page} pageSize={resourcePager.pageSize} total={resourcePager.total} onPageChange={resourcePager.setPage} itemLabel="resources" />
+            )}
           </Section>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -130,7 +137,7 @@ export const EnvironmentDetailsModal: React.FC<EnvironmentDetailsModalProps> = (
                 <p className="text-slate-500">No syncs yet.</p>
               ) : (
                 <ul className="space-y-1">
-                  {details.history.map((h) => (
+                  {historyPager.pageItems.map((h) => (
                     <li key={h.id} className="flex items-center justify-between gap-2 py-1 border-b border-slate-100 last:border-b-0">
                       <span>
                         <span className="text-slate-400">#{h.id}</span> <span className="font-mono text-indigo-700">{h.revision}</span>
@@ -142,6 +149,9 @@ export const EnvironmentDetailsModal: React.FC<EnvironmentDetailsModalProps> = (
                     </li>
                   ))}
                 </ul>
+              )}
+              {historyPager.total > historyPager.pageSize && (
+                <Pagination compact page={historyPager.page} pageSize={historyPager.pageSize} total={historyPager.total} onPageChange={historyPager.setPage} itemLabel="syncs" />
               )}
             </Section>
 

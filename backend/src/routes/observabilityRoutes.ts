@@ -48,7 +48,7 @@ router.get('/metrics/usage', authenticate, requireNamespace(VIEW, q('namespace')
 router.get('/metrics/range', authenticate, requireNamespace(VIEW, q('namespace')), getMetricsRange);
 router.get('/metrics/query', authenticate, canManage, queryMetrics);
 
-router.get('/connectors', authenticate, listObservabilityConnectors);
+router.get('/connectors', authenticate, canManage, listObservabilityConnectors);
 router.get('/connectors/discover', authenticate, canManage, discoverObservabilityServices);
 router.post('/connectors/test', authenticate, canManage, testObservabilityConnection);
 router.post('/connectors', authenticate, canManage, createObservabilityConnector);

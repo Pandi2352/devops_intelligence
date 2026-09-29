@@ -63,10 +63,10 @@ export const ChangePasswordPage: React.FC = () => {
           </div>
         )}
         <FormField id="pw-current" label="Current password" required>
-          <SecretInput id="pw-current" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} autoFocus />
+          <SecretInput id="pw-current" placeholder="Your current password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} autoFocus />
         </FormField>
         <FormField id="pw-new" label="New password" required>
-          <SecretInput id="pw-new" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
+          <SecretInput id="pw-new" placeholder="At least 10 characters, mixed case and a number" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
         </FormField>
         <ul className="space-y-1">
           {RULES.map((r) => (
@@ -77,7 +77,7 @@ export const ChangePasswordPage: React.FC = () => {
           {next && next === current && <li className="text-[11px] text-rose-700">Pick a password different from the current one</li>}
         </ul>
         <FormField id="pw-confirm" label="Repeat new password" required error={confirm && confirm !== next ? 'The passwords do not match' : undefined}>
-          <SecretInput id="pw-confirm" autoComplete="new-password" value={confirm} invalid={Boolean(confirm && confirm !== next)} onChange={(e) => setConfirm(e.target.value)} />
+          <SecretInput id="pw-confirm" placeholder="Type the new password again" autoComplete="new-password" value={confirm} invalid={Boolean(confirm && confirm !== next)} onChange={(e) => setConfirm(e.target.value)} />
         </FormField>
         <div className="flex justify-between gap-2 pt-1">
           {forced ? (

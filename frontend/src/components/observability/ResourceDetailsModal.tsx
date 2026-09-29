@@ -6,9 +6,11 @@ import { Button } from '../common/Button';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ResourceDetail, observabilityApi } from '../../api/observabilityApi';
 import { getApiErrorMessage } from '../../api/client';
-import { formatRelativeTime, formatDateTime } from '../../utils/format';
+import { formatRelativeTime } from '../../utils/format';
 import { TONE_CLASS, formatBytes, formatCores } from '../../utils/observability';
-import { StatusPill } from './PodDetailsModal';
+import { EventList, StatusPill } from './PodDetailsModal';
+import { Pagination } from '../common/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 
 type Tab = 'overview' | 'yaml' | 'events';
 
@@ -29,6 +31,7 @@ export const ResourceDetailsModal: React.FC<ResourceDetailsModalProps> = ({ clus
   const [data, setData] = useState<ResourceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const podPager = usePagination(data?.pods || [], 10, `${kindKey}|${namespace}|${name}`);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,7 +129,7 @@ export const ResourceDetailsModal: React.FC<ResourceDetailsModalProps> = ({ clus
             <div>
               <h3 className="text-xs font-semibold text-slate-700 mb-1.5">Pods ({data.pods.length})</h3>
               <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
-                {data.pods.map((p) => (
+                {podPager.pageItems.map((p) => (
                   <li key={p.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
                     <button type="button" onClick={() => onOpenPod(p.name, p.namespace)} className="font-mono text-xs text-sky-700 hover:underline">
                       {p.name}
@@ -147,6 +150,9 @@ export const ResourceDetailsModal: React.FC<ResourceDetailsModalProps> = ({ clus
                   </li>
                 ))}
               </ul>
+              {podPager.total > podPager.pageSize && (
+                <Pagination compact className="mt-2" page={podPager.page} pageSize={podPager.pageSize} total={podPager.total} onPageChange={podPager.setPage} itemLabel="pods" />
+              )}
             </div>
           )}
           {data.events.filter((e) => e.type === 'Warning').slice(0, 3).map((e, i) => (
@@ -162,24 +168,8 @@ export const ResourceDetailsModal: React.FC<ResourceDetailsModalProps> = ({ clus
           </Button>
           <pre className="max-h-[60vh] overflow-auto rounded-md bg-slate-950 text-slate-200 text-[12px] leading-[1.5] font-mono p-3">{data.yaml}</pre>
         </div>
-      ) : data.events.length ? (
-        <ul className="divide-y divide-slate-100">
-          {data.events.map((e, i) => (
-            <li key={i} className="py-2 flex gap-3 text-xs">
-              <span className={`shrink-0 w-16 font-semibold ${e.type === 'Warning' ? 'text-amber-700' : 'text-slate-500'}`}>{e.type}</span>
-              <div className="min-w-0">
-                <span className="font-semibold text-slate-800">{e.reason}</span>
-                {e.count > 1 && <span className="ml-1.5 text-slate-500">×{e.count}</span>}
-                <span className="ml-2 text-slate-400" title={formatDateTime(e.lastSeen)}>
-                  {formatRelativeTime(e.lastSeen)}
-                </span>
-                <div className="text-slate-600 break-words">{e.message}</div>
-              </div>
-            </li>
-          ))}
-        </ul>
       ) : (
-        <p className="text-xs text-slate-500 py-4">No recent events. Kubernetes keeps events for about an hour.</p>
+        <EventList events={data.events} />
       )}
     </Modal>
   );

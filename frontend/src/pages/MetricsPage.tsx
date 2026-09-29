@@ -6,6 +6,8 @@ import { Button } from '../components/common/Button';
 import { Dropdown } from '../components/common/Dropdown';
 import { TextArea } from '../components/common/Form';
 import { DataTable, DataColumn } from '../components/common/DataTable';
+import { Pagination } from '../components/common/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import { ScopeBar } from '../components/observability/ScopeBar';
 import { MetricsPanel } from '../components/observability/MetricsPanel';
 import { LineChart } from '../components/observability/LineChart';
@@ -46,7 +48,14 @@ const PromQLExplorer: React.FC<{ namespace: string }> = ({ namespace }) => {
       </button>
       {open && (
         <div className="px-4 pb-4 space-y-3">
-          <TextArea mono rows={3} value={query} onChange={(e) => setQuery(e.target.value)} aria-label="PromQL query" />
+          <TextArea
+            mono
+            rows={3}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="PromQL query"
+            placeholder={`e.g. sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="${namespace}"}[5m]))`}
+          />
           <div className="flex items-center gap-2">
             <Dropdown size="sm" ariaLabel="Range" value={range} onChange={setRange} options={TIME_RANGES} />
             <Button size="sm" leftIcon={<Play size={13} />} onClick={run} isLoading={isRunning} disabled={!query.trim()}>
@@ -121,6 +130,7 @@ export const MetricsPage: React.FC = () => {
   ];
 
   const tablePods = scope.selectedPods.length ? (scope.pods || []).filter((p) => scope.selectedPods.includes(p.name)) : scope.pods || [];
+  const podPager = usePagination(tablePods, 10, `${scope.cluster}|${scope.namespace}|${scope.target}`);
 
   return (
     <div className="space-y-4">
@@ -159,10 +169,22 @@ export const MetricsPage: React.FC = () => {
             <DataTable
               caption="Pods"
               columns={columns}
-              rows={tablePods}
+              rows={podPager.pageItems}
               rowKey={(p) => p.name}
               isLoading={scope.podsLoading && !scope.pods}
               empty={<p className="text-xs text-slate-500 py-2">No pods in this namespace.</p>}
+              footer={
+                podPager.total > 0 ? (
+                  <Pagination
+                    page={podPager.page}
+                    pageSize={podPager.pageSize}
+                    total={podPager.total}
+                    onPageChange={podPager.setPage}
+                    onPageSizeChange={podPager.setPageSize}
+                    itemLabel="pods"
+                  />
+                ) : undefined
+              }
             />
           </section>
 

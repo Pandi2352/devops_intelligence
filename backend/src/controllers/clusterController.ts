@@ -4,6 +4,7 @@ import { k8sManager, ClusterConnectionSpec } from '../config/k8s.js';
 import { Cluster, ICluster, ClusterAuthType, ClusterType } from '../models/Cluster.js';
 import { Project } from '../models/Project.js';
 import { maskSecret } from '../utils/secrets.js';
+import { buildScope, isManager } from '../services/access.js';
 import { describeRequestError } from '../utils/httpError.js';
 import { cleanString, isHttpUrl, isValidId, normalizeUrl } from '../utils/validation.js';
 
@@ -228,10 +229,30 @@ export const syncClustersFromKubeConfig = async (_req: AuthRequest, res: Respons
   }
 };
 
-export const getAllClusters = async (_req: AuthRequest, res: Response): Promise<void> => {
+export const getAllClusters = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const clusters = await Cluster.find().sort({ createdAt: -1 });
-    res.json({ clusters: clusters.map(serializeCluster) });
+    if (isManager(req.user)) {
+      res.json({ clusters: clusters.map(serializeCluster) });
+      return;
+    }
+    const projects = await Project.find();
+    const scope = await buildScope(req.user, projects);
+    const used = new Set(projects.filter((p) => scope?.projects.has(p.name)).map((p) => p.kubernetesMappings?.[0]?.clusterName).filter(Boolean));
+    res.json({
+      clusters: clusters
+        .filter((c) => used.has(c.name))
+        .map((c) => ({
+          _id: c._id,
+          name: c.name,
+          type: c.type,
+          status: c.status,
+          isDefault: c.isDefault,
+          version: c.version,
+          nodeCount: c.nodeCount,
+          namespaces: (c.namespaces || []).filter((ns) => scope?.namespaces.has(ns)),
+        })),
+    });
   } catch (err: any) {
     res.status(500).json({ message: 'Failed to retrieve clusters', error: err.message });
   }

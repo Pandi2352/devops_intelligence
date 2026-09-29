@@ -167,11 +167,14 @@ export const PushTemplateModal: React.FC<PushTemplateModalProps> = ({ integratio
                 setBranch(v);
                 setConflicts([]);
               }}
+              placeholder="Select the branch to push to"
+              searchable
+              searchPlaceholder="Filter branches, e.g. dev"
               options={branchOptions}
             />
           </FormField>
           <FormField id="push-message" label="Commit message" required>
-            <TextInput id="push-message" value={commitMessage} onChange={(e) => setCommitMessage(e.target.value)} maxLength={200} mono />
+            <TextInput id="push-message" value={commitMessage} onChange={(e) => setCommitMessage(e.target.value)} maxLength={200} placeholder="e.g. feat: update demo-api from template" mono />
           </FormField>
 
           {conflicts.length > 0 && (

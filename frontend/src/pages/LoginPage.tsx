@@ -109,6 +109,7 @@ export const LoginPage: React.FC = () => {
             </label>
             <input
               id="login-email"
+              placeholder="name@company.com"
               type="email"
               autoComplete="username"
               autoFocus
@@ -125,6 +126,7 @@ export const LoginPage: React.FC = () => {
             <div className="relative">
               <input
                 id="login-password"
+                placeholder="Your password"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required

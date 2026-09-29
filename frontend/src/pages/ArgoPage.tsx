@@ -480,6 +480,7 @@ export const ArgoPage: React.FC = () => {
                   ariaLabel="DevOps Intelligence project"
                   value={kubeProject}
                   onChange={setKubeProject}
+                  placeholder="All projects"
                   align="right"
                   menuMinWidth={200}
                   buttonClassName="min-w-[160px]"

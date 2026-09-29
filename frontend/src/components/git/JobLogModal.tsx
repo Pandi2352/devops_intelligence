@@ -132,7 +132,7 @@ export const JobLogModal: React.FC<JobLogModalProps> = ({ integrationId, repoId,
                 type="search"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter lines"
+                placeholder="Filter lines, e.g. error"
                 aria-label="Filter log lines"
                 className="h-8 w-40 pl-7 pr-2 rounded-md border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-500"
               />

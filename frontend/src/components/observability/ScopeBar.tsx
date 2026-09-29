@@ -44,7 +44,7 @@ export const ScopeBar: React.FC<{ scope: ObservabilityScope; showContainer?: boo
             value={s.cluster}
             onChange={s.setCluster}
             options={(s.scopes?.clusters || []).map((c) => ({ value: c.name, label: c.name, sublabel: c.status }))}
-            placeholder="Cluster"
+            placeholder={s.scopes ? 'No clusters connected' : 'Loading clusters…'}
           />
         </Field>
         <Field label="Project">
@@ -59,7 +59,7 @@ export const ScopeBar: React.FC<{ scope: ObservabilityScope; showContainer?: boo
             value={s.environment?.name || ''}
             onChange={s.setEnvironment}
             options={envOptions}
-            placeholder={s.project ? 'Pick environment' : '—'}
+            placeholder={s.project ? 'Pick environment' : 'Pick a project first'}
             disabled={!s.project}
           />
         </Field>
@@ -73,7 +73,8 @@ export const ScopeBar: React.FC<{ scope: ObservabilityScope; showContainer?: boo
             value={s.namespace}
             onChange={s.setNamespace}
             options={nsOptions}
-            placeholder="Pick namespace"
+            placeholder={s.cluster ? 'Pick namespace' : 'Pick a cluster first'}
+            searchPlaceholder="Search namespaces or projects"
             menuMinWidth={300}
           />
         </Field>
@@ -87,13 +88,15 @@ export const ScopeBar: React.FC<{ scope: ObservabilityScope; showContainer?: boo
             value={s.target}
             onChange={s.setTarget}
             options={targetOptions}
+            placeholder={s.namespace ? 'All pods' : 'Pick a namespace first'}
+            searchPlaceholder="Search pods or workloads"
             disabled={!s.namespace}
             menuMinWidth={340}
           />
         </Field>
         {showContainer ? (
           <Field label="Container">
-            <Dropdown size="sm" fullWidth mono ariaLabel="Container" value={s.container} onChange={s.setContainer} options={containerOptions} disabled={!s.namespace} />
+            <Dropdown size="sm" fullWidth mono ariaLabel="Container" value={s.container} onChange={s.setContainer} options={containerOptions} disabled={!s.namespace} placeholder="All containers" />
           </Field>
         ) : (
           <div />

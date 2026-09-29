@@ -1,41 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { PageHeader } from '../components/common/PageHeader';
-import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { EmptyState } from '../components/common/EmptyState';
-import { ShieldCheck, CheckCircle2, XCircle, Clock, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { approvalApi } from '../api/approvalApi';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { getApiErrorMessage } from '../api/client';
+import { usePagination } from '../hooks/usePagination';
+import { Pagination } from '../components/common/Pagination';
 import { ApprovalRequest } from '../types';
 
 export const ApprovalsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, access, isManager } = useAuth();
+  const toast = useToast();
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadApprovals = async () => {
     try {
       const data = await approvalApi.getAll();
       setApprovals(data);
-    } catch {
-      // Local fallback for offline/demo
-      setApprovals([
-        {
-          _id: 'sample-appr-1',
-          projectName: 'ecommerce',
-          action: 'RESTART_POD',
-          resource: 'pod/ecommerce-api-7b89f-29xk',
-          reason: 'Memory leak mitigation during flash sale test',
-          requestedBy: 'Developer User',
-          requestedByRole: 'developer',
-          status: 'PENDING',
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+      setLoadError(null);
+    } catch (err) {
+      setApprovals([]);
+      setLoadError(getApiErrorMessage(err, 'Could not load approval requests'));
     } finally {
       setIsLoading(false);
     }
@@ -45,27 +39,20 @@ export const ApprovalsPage: React.FC = () => {
     loadApprovals();
   }, []);
 
-  const canReview = user?.role === 'superadmin' || user?.role === 'devops';
+  // Admins, and Manager Approvers / project Admins of that project; never your own request (the API enforces the same).
+  const canReview = (item: ApprovalRequest) =>
+    item.requestedBy !== user?.email &&
+    item.requestedBy !== user?.name &&
+    (isManager || Boolean(access?.projects.find((p) => p.name === item.projectName)?.canApprove));
 
   const handleReview = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     setActionInProgress(id);
     try {
       const updated = await approvalApi.review(id, status);
-      setApprovals(approvals.map((a) => (a._id === id ? updated : a)));
-    } catch {
-      // Local update for offline demo
-      setApprovals(
-        approvals.map((a) =>
-          a._id === id
-            ? {
-                ...a,
-                status,
-                reviewedBy: user?.name || 'DevOps Manager',
-                reviewedAt: new Date().toISOString(),
-              }
-            : a
-        )
-      );
+      setApprovals((prev) => prev.map((a) => (a._id === id ? updated : a)));
+      toast.success(`Request ${status === 'APPROVED' ? 'approved' : 'rejected'}`);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Could not review the request'));
     } finally {
       setActionInProgress(null);
     }
@@ -75,6 +62,7 @@ export const ApprovalsPage: React.FC = () => {
     filterStatus === 'ALL'
       ? approvals
       : approvals.filter((a) => a.status === filterStatus);
+  const pager = usePagination(filtered, 10, filterStatus);
 
   if (isLoading) return <LoadingSpinner message="Loading Manager Approval Queue..." />;
 
@@ -112,6 +100,11 @@ export const ApprovalsPage: React.FC = () => {
       </div>
 
       {/* Approvals Table */}
+      {loadError && (
+        <div className="p-3 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2" role="alert">
+          <AlertTriangle size={14} /> {loadError}
+        </div>
+      )}
       {filtered.length === 0 ? (
         <EmptyState
           icon={<ShieldCheck size={28} />}
@@ -132,7 +125,7 @@ export const ApprovalsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map((item) => (
+              {pager.pageItems.map((item) => (
                 <tr key={item._id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="font-bold text-slate-900 capitalize">{item.projectName}</div>
@@ -170,7 +163,7 @@ export const ApprovalsPage: React.FC = () => {
 
                   <td className="px-4 py-3 text-right">
                     {item.status === 'PENDING' ? (
-                      canReview ? (
+                      canReview(item) ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <Button
                             variant="primary"
@@ -206,6 +199,16 @@ export const ApprovalsPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+          <div className="border-t border-slate-200 px-4 py-2.5">
+            <Pagination
+              page={pager.page}
+              pageSize={pager.pageSize}
+              total={pager.total}
+              onPageChange={pager.setPage}
+              onPageSizeChange={pager.setPageSize}
+              itemLabel="requests"
+            />
+          </div>
         </div>
       )}
     </div>

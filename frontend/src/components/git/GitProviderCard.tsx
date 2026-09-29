@@ -28,8 +28,17 @@ export const GitProviderCard: React.FC<GitProviderCardProps> = ({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isSelected}
       onClick={() => onSelect(integration)}
-      className={`bg-white rounded-md p-5 border transition-colors cursor-pointer ${
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(integration);
+        }
+      }}
+      className={`bg-white rounded-md p-5 border transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
         isSelected
           ? 'border-sky-600 bg-sky-50/20'
           : 'border-slate-200 hover:border-slate-300'

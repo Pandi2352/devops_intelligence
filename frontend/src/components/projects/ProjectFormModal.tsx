@@ -544,7 +544,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({ project, onC
           <>
             <Section title="Basics" icon={<FolderKanban size={13} />}>
               <FormField id="project-description" label="Description">
-                <TextArea id="project-description" rows={2} maxLength={500} value={values.description} onChange={(e) => setValue('description', e.target.value)} />
+                <TextArea id="project-description" rows={2} maxLength={500} value={values.description} placeholder="What this project runs and who owns it" onChange={(e) => setValue('description', e.target.value)} />
               </FormField>
             </Section>
             <Section title="Code & GitOps" icon={<FolderGit2 size={13} />}>

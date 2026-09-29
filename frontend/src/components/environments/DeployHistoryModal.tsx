@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ExternalLink, History, Loader2, Undo2 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Pagination } from '../common/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 import { environmentApi, DeployHistoryEntry, EnvironmentView } from '../../api/environmentApi';
 import { getApiErrorMessage } from '../../api/client';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
@@ -27,6 +29,7 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
   const [target, setTarget] = useState<DeployHistoryEntry | null>(null);
   const [isRollingBack, setIsRollingBack] = useState(false);
   const [rollbackError, setRollbackError] = useState<string | null>(null);
+  const pager = usePagination(entries || [], 10, env.key);
 
   useEffect(() => {
     environmentApi
@@ -74,7 +77,7 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
           </div>
         ) : (
           <ol className="relative border-l border-slate-200 ml-2 space-y-3">
-            {entries.map((e) => {
+            {pager.pageItems.map((e) => {
               const isCurrent = Boolean(e.tag && e.tag === currentTag);
               const canRollBack = canManage && e.kind !== 'other' && e.tag && !isCurrent;
               return (
@@ -130,6 +133,9 @@ export const DeployHistoryModal: React.FC<DeployHistoryModalProps> = ({ projectI
               );
             })}
           </ol>
+        )}
+        {entries && pager.total > pager.pageSize && (
+          <Pagination compact className="mt-3" page={pager.page} pageSize={pager.pageSize} total={pager.total} onPageChange={pager.setPage} itemLabel="deploys" />
         )}
       </Modal>
 

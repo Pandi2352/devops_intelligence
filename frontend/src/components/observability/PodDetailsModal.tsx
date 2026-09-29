@@ -5,6 +5,8 @@ import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Dropdown } from '../common/Dropdown';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { Pagination } from '../common/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 import { LogViewer } from './LogViewer';
 import { MetricsPanel } from './MetricsPanel';
 import { ContainerInfo, EventInfo, PodInfo, observabilityApi } from '../../api/observabilityApi';
@@ -87,28 +89,51 @@ const ContainerCard: React.FC<{ c: ContainerInfo }> = ({ c }) => (
   </div>
 );
 
-const EventList: React.FC<{ events: EventInfo[] }> = ({ events }) =>
-  events.length ? (
-    <ul className="divide-y divide-slate-100">
-      {events.map((e, i) => (
-        <li key={`${e.reason}-${e.lastSeen}-${i}`} className="py-2 flex gap-3 text-xs">
-          <span className={`shrink-0 w-16 font-semibold ${e.type === 'Warning' ? 'text-amber-700' : 'text-slate-500'}`}>{e.type}</span>
-          <div className="min-w-0 flex-1">
-            <div>
-              <span className="font-semibold text-slate-800">{e.reason}</span>
-              {e.count > 1 && <span className="ml-1.5 text-slate-500">×{e.count}</span>}
-              <span className="ml-2 text-slate-400" title={formatDateTime(e.lastSeen)}>
-                {formatRelativeTime(e.lastSeen)}
-              </span>
-            </div>
-            <div className="text-slate-600 break-words">{e.message}</div>
-          </div>
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <p className="text-xs text-slate-500 py-4">No events in the last hour. Kubernetes keeps events for about an hour.</p>
+// Kubernetes events with a text filter and pages; shared by the pod and resource detail views.
+export const EventList: React.FC<{ events: EventInfo[] }> = ({ events }) => {
+  const [filter, setFilter] = useState('');
+  const needle = filter.trim().toLowerCase();
+  const shown = needle ? events.filter((e) => `${e.type} ${e.reason} ${e.message} ${e.object}`.toLowerCase().includes(needle)) : events;
+  const pager = usePagination(shown, 10, needle);
+  if (!events.length) return <p className="text-xs text-slate-500 py-4">No events in the last hour. Kubernetes keeps events for about an hour.</p>;
+  return (
+    <div className="space-y-2">
+      {events.length > 5 && (
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter events by type, reason or message"
+          aria-label="Filter events"
+          className="w-full h-8 px-2.5 rounded-md border border-slate-200 text-xs focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+        />
+      )}
+      {shown.length === 0 ? (
+        <p className="text-xs text-slate-500 py-2">No events match the filter.</p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {pager.pageItems.map((e, i) => (
+            <li key={`${e.reason}-${e.lastSeen}-${i}`} className="py-2 flex gap-3 text-xs">
+              <span className={`shrink-0 w-16 font-semibold ${e.type === 'Warning' ? 'text-amber-700' : 'text-slate-500'}`}>{e.type}</span>
+              <div className="min-w-0 flex-1">
+                <div>
+                  <span className="font-semibold text-slate-800">{e.reason}</span>
+                  {e.count > 1 && <span className="ml-1.5 text-slate-500">×{e.count}</span>}
+                  <span className="ml-2 text-slate-400" title={formatDateTime(e.lastSeen)}>
+                    {formatRelativeTime(e.lastSeen)}
+                  </span>
+                </div>
+                <div className="text-slate-600 break-words">{e.message}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {pager.total > pager.pageSize && (
+        <Pagination compact page={pager.page} pageSize={pager.pageSize} total={pager.total} onPageChange={pager.setPage} itemLabel="events" />
+      )}
+    </div>
   );
+};
 
 export const PodDetailsModal: React.FC<PodDetailsModalProps> = ({ cluster, namespace, pod, initialTab = 'overview', onClose }) => {
   const [tab, setTab] = useState<Tab>(initialTab);

@@ -76,7 +76,7 @@ export const ArgoConfigModal: React.FC<ArgoConfigModalProps> = ({
           </label>
           <input
             type="password"
-            placeholder="••••••••••••"
+            placeholder="ArgoCD admin password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full px-3 py-2 rounded-md bg-white border border-slate-300 text-slate-900 text-sm focus:border-sky-600 font-mono"
@@ -89,7 +89,7 @@ export const ArgoConfigModal: React.FC<ArgoConfigModalProps> = ({
           </label>
           <input
             type="password"
-            placeholder="Bearer token..."
+            placeholder="API token from argocd account generate-token"
             value={authToken}
             onChange={(e) => setAuthToken(e.target.value)}
             className="w-full px-3 py-2 rounded-md bg-white border border-slate-300 text-slate-900 text-sm focus:border-sky-600 font-mono"

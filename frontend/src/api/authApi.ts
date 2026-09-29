@@ -14,7 +14,7 @@ export const authApi = {
     id: string,
     data: { role?: UserRole; allowedClusters?: string[]; allowedEnvironments?: string[]; isActive?: boolean }
   ): Promise<User> => {
-    const res = await api.put(`/auth/users/${id}/role`, data);
+    const res = await api.put(`/auth/users/${id}`, data);
     return res.data.user;
   },
 };

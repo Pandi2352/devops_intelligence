@@ -178,6 +178,7 @@ export const ArgoConnectorModal: React.FC<ArgoConnectorModalProps> = ({ connecto
           <FormField id="ar-username" label="Username" required error={errors.username}>
             <TextInput
               id="ar-username"
+              placeholder="admin"
               value={values.username}
               onChange={(e) => update('username', e.target.value)}
               autoComplete="off"

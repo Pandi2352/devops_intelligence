@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { isManager } from '../services/access.js';
 import axios, { AxiosInstance } from 'axios';
 import https from 'https';
 import { AuthRequest } from '../middleware/auth.js';
@@ -141,7 +142,12 @@ export const getArgoStatus = async (_req: AuthRequest, res: Response): Promise<v
 
     await applyProbe(integration);
     await integration.save();
-    res.json({ integration: serializeArgo(integration) });
+    const full = serializeArgo(integration);
+    res.json({
+      integration: isManager(_req.user)
+        ? full
+        : { _id: full._id, id: full.id, name: full.name, serverUrl: full.serverUrl, status: full.status, version: full.version, lastPingAt: full.lastPingAt, isDefault: full.isDefault },
+    });
   } catch (err: any) {
     res.status(500).json({ message: 'Error checking ArgoCD status', error: err.message });
   }

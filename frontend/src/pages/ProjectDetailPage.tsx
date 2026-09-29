@@ -35,6 +35,8 @@ import { useToast } from '../context/ToastContext';
 import { getApiErrorMessage } from '../api/client';
 import { EnvironmentSetup, Project, ProjectOverview, ProjectSetup, ProvisionResult, projectApi, projectOverviewApi } from '../api/projectApi';
 import { repoLabel, repoWebUrl } from '../utils/project';
+import { usePagination } from '../hooks/usePagination';
+import { Pagination } from '../components/common/Pagination';
 
 const InfoCard: React.FC<{ icon: React.ReactNode; label: string; children: React.ReactNode }> = ({ icon, label, children }) => (
   <div className="rounded-lg border border-slate-200 bg-white p-3 min-w-0">
@@ -188,6 +190,9 @@ export const ProjectDetailPage: React.FC = () => {
       setIsRemoving(false);
     }
   };
+
+  // Setup checklist: 10 environments per page (hooks must run before the early returns below).
+  const checklistPager = usePagination(setup?.environments ?? [], 10, id);
 
   if (isLoading) return <LoadingSpinner />;
   if (!project)
@@ -395,7 +400,7 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {envs.map((env) => {
+            {checklistPager.pageItems.map((env) => {
               const open = expanded.has(env.name);
               const missing = env.checks.some((c) => !c.ok);
               return (
@@ -474,6 +479,18 @@ export const ProjectDetailPage: React.FC = () => {
               );
             })}
           </ul>
+        )}
+        {setup && checklistPager.total > checklistPager.pageSize && (
+          <div className="border-t border-slate-200 px-4 py-2.5">
+            <Pagination
+              compact
+              page={checklistPager.page}
+              pageSize={checklistPager.pageSize}
+              total={checklistPager.total}
+              onPageChange={checklistPager.setPage}
+              itemLabel="environments"
+            />
+          </div>
         )}
       </section>
       )}
