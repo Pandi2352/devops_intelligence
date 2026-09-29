@@ -473,7 +473,7 @@ export const ArgoPage: React.FC = () => {
             actions={
               kubeProjects.length > 0 && (
                 <Dropdown<string>
-                  ariaLabel="KubeOrbit project"
+                  ariaLabel="DevOps Intelligence project"
                   value={kubeProject}
                   onChange={setKubeProject}
                   align="right"
@@ -482,7 +482,7 @@ export const ArgoPage: React.FC = () => {
                   options={[
                     { value: '', label: 'All projects' },
                     ...kubeProjects.map((p) => ({ value: p, label: p })),
-                    { value: '__none', label: 'Not in a KubeOrbit project' },
+                    { value: '__none', label: 'Not in a DevOps Intelligence project' },
                   ]}
                 />
               )

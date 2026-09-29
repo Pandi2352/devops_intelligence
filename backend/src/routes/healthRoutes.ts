@@ -10,7 +10,7 @@ router.get('/health', async (_req: Request, res: Response) => {
 
   res.json({
     status: 'UP',
-    platform: 'KubeOrbit DevOps Platform',
+    platform: 'DevOps Intelligence DevOps Platform',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     services: {

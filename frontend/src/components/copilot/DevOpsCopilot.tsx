@@ -51,7 +51,7 @@ export const DevOpsCopilot: React.FC = () => {
     {
       id: 'welcome-1',
       sender: 'assistant',
-      text: `👋 Welcome ${user?.name || 'Engineer'}! I am your **KubeOrbit DevOps Copilot**.\n\nI can explain your company's full **GitLab CI + Security + ArgoCD GitOps** architecture, breakdown pipeline stages, or help you submit **Manager Approval Requests** for sensitive cluster operations (like pod restarts and deployment scaling).`,
+      text: `👋 Welcome ${user?.name || 'Engineer'}! I am your **DevOps Intelligence DevOps Copilot**.\n\nI can explain your company's full **GitLab CI + Security + ArgoCD GitOps** architecture, breakdown pipeline stages, or help you submit **Manager Approval Requests** for sensitive cluster operations (like pod restarts and deployment scaling).`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -177,7 +177,7 @@ export const DevOpsCopilot: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-slate-900">KubeOrbit DevOps Copilot</span>
+              <span className="font-bold text-sm text-slate-900">DevOps Intelligence DevOps Copilot</span>
               <span className="px-1.5 py-0.2 rounded-md bg-sky-100 text-sky-700 text-[10px] font-mono font-bold border border-sky-200">
                 AI Knowledge Engine
               </span>

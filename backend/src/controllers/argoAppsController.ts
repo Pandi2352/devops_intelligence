@@ -5,14 +5,14 @@ import { Project } from '../models/Project.js';
 import { argoRequest, syncArgoApp } from './argoController.js';
 import { describeRequestError } from '../utils/httpError.js';
 
-// Everything ArgoCD knows about its applications, shaped for the KubeOrbit ArgoCD page.
+// Everything ArgoCD knows about its applications, shaped for the DevOps Intelligence ArgoCD page.
 
 const appPath = (name: string) => `/api/v1/applications/${encodeURIComponent(name)}`;
 const NAME_PATTERN = /^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$/;
 
 const initiatedBy = (i: any) => i?.username || (i?.automated ? 'auto-sync' : '');
 
-// Which KubeOrbit project / environment maps each ArgoCD app.
+// Which DevOps Intelligence project / environment maps each ArgoCD app.
 const projectIndex = async () => {
   const index = new Map<string, { project: string; projectId: string; environment: string }>();
   const projects = await Project.find({}, { name: 1, argoApps: 1 });

@@ -1,7 +1,7 @@
 # demo-api
 
-Small Express service for practising the KubeOrbit DevOps workflow one stage at a time
-(see `devops-demo/README.md` in the KubeOrbit workspace).
+Small Express service for practising the DevOps Intelligence DevOps workflow one stage at a time
+(see `devops-demo/README.md` in the DevOps Intelligence workspace).
 
 ## Run locally
 

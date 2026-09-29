@@ -1,6 +1,6 @@
 # kubectl apply -f argocd/kubeorbit-demo-api-dev.yaml
 # Dev syncs automatically: every commit CI makes to k8s/overlays/dev is deployed within ~3 minutes
-# (or immediately with "Sync Now" in KubeOrbit's ArgoCD GitOps page).
+# (or immediately with "Sync Now" in DevOps Intelligence's ArgoCD GitOps page).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

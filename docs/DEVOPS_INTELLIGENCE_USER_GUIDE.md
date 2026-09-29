@@ -1,28 +1,28 @@
-# KubeOrbit User Guide
+# DevOps Intelligence User Guide
 
 > **One place to build, ship, run and debug your applications on Kubernetes.**
 > This guide takes you from an empty laptop to a running, multi-environment application
-> with CI/CD, GitOps, promotion, rollback, logs and metrics, all driven from KubeOrbit.
+> with CI/CD, GitOps, promotion, rollback, logs and metrics, all driven from DevOps Intelligence.
 >
 > Read it in the app: **User Guide** in the sidebar (`/guide`), with a searchable table of contents.
 > Track your own progress: **Getting Started** (`/docs`) checks every step against your real setup.
 
 ---
 
-## 1. What KubeOrbit is
+## 1. What DevOps Intelligence is
 
-KubeOrbit is a DevOps control center that sits on top of the tools teams already use:
+DevOps Intelligence is a DevOps control center that sits on top of the tools teams already use:
 **GitLab** (code, CI/CD, container registry), **ArgoCD** (GitOps deployments),
 **Kubernetes** (where apps run) and **Prometheus / Grafana / Loki** (observability).
 
-Without KubeOrbit you jump between a GitLab tab, the ArgoCD UI, `kubectl`, and Grafana,
+Without DevOps Intelligence you jump between a GitLab tab, the ArgoCD UI, `kubectl`, and Grafana,
 and you have to remember which namespace, branch, image tag and ArgoCD app belongs to which
-environment. KubeOrbit ties all of that to a **project** and its **environments**, so
+environment. DevOps Intelligence ties all of that to a **project** and its **environments**, so
 one question ("what runs in qa, and why is it broken?") has one screen with the answer.
 
 ### What you can do with it
 
-| You want to… | Where in KubeOrbit |
+| You want to… | Where in DevOps Intelligence |
 |---|---|
 | Connect clusters, GitLab, ArgoCD, Prometheus, Grafana, Loki | **Connectors** |
 | Create a repo from a template and push code | **GitLab Repositories** |
@@ -39,12 +39,12 @@ one question ("what runs in qa, and why is it broken?") has one screen with the 
 
 ---
 
-## 2. How KubeOrbit works
+## 2. How DevOps Intelligence works
 
 ### 2.1 The big picture
 
 ```
-                         ┌──────────────────────── KubeOrbit ─────────────────────────┐
+                         ┌──────────────────────── DevOps Intelligence ─────────────────────────┐
   Browser  ─────────────▶│  Frontend (React, :5173)  ──/api──▶  Backend (Express, :5000)│
                          │                                         │   MongoDB (:27017)  │
                          └─────────────────────────────────────────┼─────────────────────┘
@@ -56,11 +56,11 @@ one question ("what runs in qa, and why is it broken?") has one screen with the 
   registry, tokens)    history, rollback)     namespaces, secrets)   via the K8s service proxy
 ```
 
-- The **frontend** is what you click. It only talks to the KubeOrbit backend.
+- The **frontend** is what you click. It only talks to the DevOps Intelligence backend.
 - The **backend** holds the connectors (credentials are **encrypted at rest** with
   `CREDENTIALS_SECRET`) and calls GitLab, ArgoCD, Kubernetes and the observability tools for you.
 - **Prometheus, Grafana and Loki** that run inside the cluster are reached through the Kubernetes
-  API server's service proxy, so you don't need a port-forward for KubeOrbit to read them.
+  API server's service proxy, so you don't need a port-forward for DevOps Intelligence to read them.
 
 ### 2.2 The delivery flow (one branch = one environment)
 
@@ -99,7 +99,7 @@ A **project** is one application:
 | GitOps repo (Kustomize base + one overlay per environment) | `mvp.bose23/kubeorbit-demo-api-gitops` |
 | Cluster | `minikube` |
 
-An **environment** of a project is always these eight things, and KubeOrbit checks every one:
+An **environment** of a project is always these eight things, and DevOps Intelligence checks every one:
 
 | # | Item | Example for `uat` |
 |---|---|---|
@@ -135,8 +135,8 @@ An **environment** of a project is always these eight things, and KubeOrbit chec
 | minikube | 1.3x+ | a local Kubernetes cluster |
 | kubectl | matches the cluster (1.3x) | talk to Kubernetes |
 | Helm | 3.x | install Prometheus, Grafana, Loki |
-| Node.js | 20+ | run KubeOrbit and the demo app |
-| MongoDB | 7/8 | KubeOrbit's database |
+| Node.js | 20+ | run DevOps Intelligence and the demo app |
+| MongoDB | 7/8 | DevOps Intelligence's database |
 | Git | any | push code the everyday way |
 | A GitLab.com account | verified (for shared CI runners) | repos, CI/CD, registry |
 
@@ -152,12 +152,12 @@ Machine: **4 CPUs and 8 GB RAM free** for minikube is comfortable (ArgoCD + moni
 
 ```bash
 minikube start --driver=docker --cpus=4 --memory=8192
-minikube addons enable metrics-server     # live CPU/memory for KubeOrbit
+minikube addons enable metrics-server     # live CPU/memory for DevOps Intelligence
 minikube addons enable ingress            # optional: ingress controller
 kubectl get nodes                         # minikube   Ready
 ```
 
-`kubectl` now points at the `minikube` context in `~/.kube/config`. KubeOrbit reads the same file.
+`kubectl` now points at the `minikube` context in `~/.kube/config`. DevOps Intelligence reads the same file.
 
 Useful later:
 
@@ -194,7 +194,7 @@ $p = kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.dat
 [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p))
 ```
 
-> You don't need to create ArgoCD applications by hand. KubeOrbit creates them when you add an environment.
+> You don't need to create ArgoCD applications by hand. DevOps Intelligence creates them when you add an environment.
 
 ### A3. Install Prometheus + Grafana (metrics)
 
@@ -254,7 +254,7 @@ promtail:
 > With the wrong one every line is stored wrapped in `{"log": …}` and stamped with the time it was shipped
 > instead of the time it was written.
 
-Then add it in KubeOrbit: **Connectors → Observability → Discover in cluster → Add** on `monitoring/loki:3100`.
+Then add it in DevOps Intelligence: **Connectors → Observability → Discover in cluster → Add** on `monitoring/loki:3100`.
 
 > On the first start Promtail reads the existing log files. Loki refuses lines that are more than about an hour
 > older than the newest line of the same stream (`entry too far behind` in the Promtail log), so part of the
@@ -270,7 +270,7 @@ mongosh --eval "db.runCommand({ ping: 1 })"     # { ok: 1 }
 
 Or with Docker: `docker run -d --name mongo -p 27017:27017 mongo:8`.
 
-### A6. Run KubeOrbit
+### A6. Run DevOps Intelligence
 
 **Backend**
 
@@ -298,7 +298,7 @@ npm run build && npm start        # or: npm run dev   (auto-reload while develop
 curl http://localhost:5000/api/health
 ```
 
-On first start KubeOrbit creates the admin user **`admin@kubeorbit.local`** / **`AdminPassword123!`**.
+On first start DevOps Intelligence creates the admin user **`admin@kubeorbit.local`** / **`AdminPassword123!`**.
 Change the password after the first login.
 
 **Frontend**
@@ -318,8 +318,8 @@ Open the URL, sign in, and go to **Getting Started**: every step shows *Done*, *
 |---|---|
 | ArgoCD | `kubectl port-forward svc/argocd-server -n argocd 8081:443` |
 | Grafana (optional) | `kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80` |
-| KubeOrbit backend | `cd backend && npm start` |
-| KubeOrbit frontend | `cd frontend && npm run dev` |
+| DevOps Intelligence backend | `cd backend && npm start` |
+| DevOps Intelligence frontend | `cd frontend && npm run dev` |
 
 ---
 
@@ -348,7 +348,7 @@ Status turns **Healthy** after a successful test (version, nodes and namespaces 
 | Base URL | `https://gitlab.com` (or your self-managed URL) |
 | Personal access token | scopes **`api`**, **`read_registry`**, **`write_repository`** |
 
-GitLab → *Preferences → Access tokens → Add new token*. Set an expiry date and store it only in KubeOrbit.
+GitLab → *Preferences → Access tokens → Add new token*. Set an expiry date and store it only in DevOps Intelligence.
 The **folder icon** on the connector row lists the repositories that token can see.
 
 ### B3. ArgoCD
@@ -361,7 +361,7 @@ The **folder icon** on the connector row lists the repositories that token can s
 | Auth | *username + password* (`admin` + the password from A2), or an API token |
 | Skip TLS verify | **on** for the local self-signed certificate |
 
-KubeOrbit logs in with a session and refreshes it automatically.
+DevOps Intelligence logs in with a session and refreshes it automatically.
 
 ### B4. Observability (Prometheus, Grafana, Loki)
 
@@ -374,21 +374,21 @@ services. Press **Add** on each:
 | Grafana | `monitoring/kube-prometheus-stack-grafana:80` | through cluster, **browser URL** `http://localhost:3000` |
 | Loki | `monitoring/loki:3100` | through cluster |
 
-- **Through cluster** needs no port-forward and no credentials. KubeOrbit uses the cluster connector.
+- **Through cluster** needs no port-forward and no credentials. DevOps Intelligence uses the cluster connector.
 - **URL** mode is for a hosted or ingress-exposed service (with optional basic auth or bearer token).
 - Grafana's **browser URL** is what *your browser* opens for "Open in Grafana" links.
 
 ### Credentials used by the pipeline (per project)
 
-These are created by you once, or by KubeOrbit for you, and each is limited to one job:
+These are created by you once, or by DevOps Intelligence for you, and each is limited to one job:
 
 | Credential | Access | Stored in | Who creates it |
 |---|---|---|---|
 | SSH deploy key (write) on the GitOps repo | push to the GitOps repo only | app repo CI variable `GITOPS_DEPLOY_KEY` (File, **Protected**) | you (B5) |
 | `GITOPS_REPO` | SSH URL of the GitOps repo | app repo CI variable | you (B5) |
-| Deploy token `kubeorbit-argocd-read` | read the GitOps repo | ArgoCD repository | KubeOrbit (Add environment) |
-| Registry pull secret `gitlab-registry` | pull images | each environment namespace | KubeOrbit (Add environment) |
-| `DEPLOY_BRANCHES` | which branches deploy | app repo CI variable | KubeOrbit (Add environment) |
+| Deploy token `kubeorbit-argocd-read` | read the GitOps repo | ArgoCD repository | DevOps Intelligence (Add environment) |
+| Registry pull secret `gitlab-registry` | pull images | each environment namespace | DevOps Intelligence (Add environment) |
+| `DEPLOY_BRANCHES` | which branches deploy | app repo CI variable | DevOps Intelligence (Add environment) |
 
 ### B5. One-time CI setup for a new application repo
 
@@ -424,11 +424,11 @@ npm run dev                    # http://localhost:3000
 curl localhost:3000/           # service, version, commit, buildEnv, pod
 ```
 
-### C2. Create both repositories from KubeOrbit
+### C2. Create both repositories from DevOps Intelligence
 
 **GitLab Repositories → New repository**
 
-1. Name `kubeorbit-demo-api`, starter code **demo-api**. KubeOrbit creates the project and pushes the
+1. Name `kubeorbit-demo-api`, starter code **demo-api**. DevOps Intelligence creates the project and pushes the
    folder as the first commit. The pipeline starts immediately.
 2. Name `kubeorbit-demo-api-gitops`, starter code **demo-api-gitops**.
 
@@ -673,7 +673,7 @@ and **Terminate** a running operation. Sync and rollback need Super Admin or Dev
 | New environment **never deploys** | Project page → CI item red | the branch's `.gitlab-ci.yml` still has a fixed branch list: promote the file that uses `$DEPLOY_BRANCHES` into that branch |
 | Pipeline builds but **doesn't publish** | job `publish_argocd` log | the branch isn't protected (no `GITOPS_DEPLOY_KEY`), or the deploy key lacks write access on GitOps `main` |
 | ArgoCD app **Unknown** / *authentication required* | Project page → *ArgoCD repo access* | press **Fix** (creates a read deploy token and re-registers the repo) |
-| Sync says *another operation is already in progress* | ArgoCD page → app → Details | KubeOrbit waits and retries; if stuck, **Terminate** the operation |
+| Sync says *another operation is already in progress* | ArgoCD page → app → Details | DevOps Intelligence waits and retries; if stuck, **Terminate** the operation |
 | Environments shows an old commit | card → Details | ArgoCD caches Git for ~3 min; **Sync now** hard-refreshes first |
 | Promotion *diverged* | GitLab MR | the target has a hotfix commit: merge it back into `dev`, then promote |
 | Metrics: *No Prometheus connector* | Connectors → Observability | **Discover in cluster** → Add Prometheus |
@@ -728,8 +728,8 @@ and **Terminate** a running operation. Sync and rollback need Super Admin or Dev
 
 | What | URL |
 |---|---|
-| KubeOrbit UI | http://localhost:5173 (or 5174/5175) |
-| KubeOrbit API | http://localhost:5000/api (health: `/api/health`) |
+| DevOps Intelligence UI | http://localhost:5173 (or 5174/5175) |
+| DevOps Intelligence API | http://localhost:5000/api (health: `/api/health`) |
 | ArgoCD | https://localhost:8081 (port-forward) |
 | Grafana | http://localhost:3000 (port-forward) |
 | MongoDB | mongodb://127.0.0.1:27017/kubeorbit |
@@ -768,7 +768,7 @@ k8s/
     dev/                kustomization.yaml   (namespace, replicas, APP_ENV, images[0].newName/newTag)
     qa/  staging/  uat/
     prod/               kustomization.yaml + pdb.yaml
-argocd/                 one Application per environment (for reference; KubeOrbit creates them)
+argocd/                 one Application per environment (for reference; DevOps Intelligence creates them)
 ```
 
 ### Glossary

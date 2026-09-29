@@ -271,7 +271,7 @@ export const ProjectsPage: React.FC = () => {
         title="Delete project?"
         message={
           <>
-            <strong className="font-semibold">{deleteTarget?.name}</strong> is removed from KubeOrbit. Its repositories, ArgoCD apps and
+            <strong className="font-semibold">{deleteTarget?.name}</strong> is removed from DevOps Intelligence. Its repositories, ArgoCD apps and
             namespaces are left untouched; remove environments first on the project page if you want those cleaned up.
           </>
         }

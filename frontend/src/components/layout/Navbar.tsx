@@ -13,7 +13,7 @@ export const Navbar: React.FC = () => {
       {/* Left: Clean Brand / Breadcrumb Area */}
       <div className="flex items-center gap-2">
         <span className="text-xs font-bold text-slate-800 tracking-tight">
-          KubeOrbit Control Plane
+          DevOps Intelligence Control Plane
         </span>
         <span className="text-slate-300">/</span>
         <span className="text-xs text-slate-500 font-medium">Enterprise GitOps &amp; RBAC</span>

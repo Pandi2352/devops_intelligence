@@ -1,7 +1,7 @@
 {
   "name": "demo-api",
   "version": "1.0.0",
-  "description": "Small Express service used to practise the KubeOrbit DevOps workflow end to end",
+  "description": "Small Express service used to practise the DevOps Intelligence DevOps workflow end to end",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

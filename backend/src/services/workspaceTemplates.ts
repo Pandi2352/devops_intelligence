@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
-// Starter code that KubeOrbit can push into a new or existing repository.
+// Starter code that DevOps Intelligence can push into a new or existing repository.
 // Each immediate sub-folder of the templates directory is one template (e.g. devops-demo/demo-api).
 // Folders starting with "_" or "." are ignored (e.g. devops-demo/_reference).
 const TEMPLATES_DIR = path.resolve(process.env.WORKSPACE_TEMPLATES_DIR || path.join(process.cwd(), '..', 'devops-demo'));

@@ -51,7 +51,7 @@ const PIPELINE_POLL_MS = 5000;
 const TRIGGER_LABEL: Record<string, string> = {
   push: 'pushed',
   web: 'run from GitLab',
-  api: 'run from KubeOrbit',
+  api: 'run from DevOps Intelligence',
   schedule: 'scheduled',
   merge_request_event: 'merge request',
   trigger: 'triggered',

@@ -156,7 +156,7 @@ export const ConnectorsPage: React.FC = () => {
     <div className="space-y-5">
       <PageHeader
         title="Connectors"
-        description="Credentials KubeOrbit uses to reach your Kubernetes clusters, GitLab, ArgoCD, Prometheus, Grafana and Loki. Secrets are encrypted at rest and never shown again after saving."
+        description="Credentials DevOps Intelligence uses to reach your Kubernetes clusters, GitLab, ArgoCD, Prometheus, Grafana and Loki. Secrets are encrypted at rest and never shown again after saving."
       />
 
       {!canManage && (

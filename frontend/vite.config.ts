@@ -10,7 +10,7 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
-    // the user guide page imports ../docs/KUBEORBIT_USER_GUIDE.md
+    // the user guide page imports ../docs/DEVOPS_INTELLIGENCE_USER_GUIDE.md
     fs: { allow: ['..'] },
     proxy: {
       '/api': {

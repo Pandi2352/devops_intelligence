@@ -77,7 +77,7 @@ app.use('/api/observability', observabilityRoutes);
 // Root route
 app.get('/', (_req, res) => {
   res.json({
-    message: 'Welcome to KubeOrbit Centralized Kubernetes & GitOps Platform API',
+    message: 'Welcome to DevOps Intelligence Centralized Kubernetes & GitOps Platform API',
     version: '1.0.0',
     documentation: '/api/health',
   });
@@ -97,7 +97,7 @@ const startServer = async () => {
   await seedClustersIfNone();
 
   server.listen(PORT, () => {
-    console.log(`🚀 [KubeOrbit Backend] Server running on http://localhost:${PORT}`);
+    console.log(`🚀 [DevOps Intelligence Backend] Server running on http://localhost:${PORT}`);
     console.log(`📡 [Health Check] http://localhost:${PORT}/api/health`);
   });
 };

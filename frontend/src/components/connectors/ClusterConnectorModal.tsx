@@ -172,7 +172,7 @@ export const ClusterConnectorModal: React.FC<ClusterConnectorModalProps> = ({ co
   return (
     <ConnectorFormModal
       title={isEdit ? `Edit ${connector!.name}` : 'Add Kubernetes cluster'}
-      subtitle="Register a cluster KubeOrbit can browse and deploy to"
+      subtitle="Register a cluster DevOps Intelligence can browse and deploy to"
       icon={<ConnectorLogoTile kind="clusters" />}
       formId="cluster-connector-form"
       submitLabel={isEdit ? 'Save changes' : 'Add cluster'}

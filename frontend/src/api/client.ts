@@ -24,7 +24,7 @@ export const getApiErrorMessage = (err: unknown, fallback = 'Something went wron
     if (data?.message) return data.message;
     if (data?.error) return data.error;
     if (err.response?.status === 403) return 'You do not have permission to perform this action.';
-    if (!err.response) return 'Unable to reach the KubeOrbit API. Check that the backend is running.';
+    if (!err.response) return 'Unable to reach the DevOps Intelligence API. Check that the backend is running.';
   }
   if (err instanceof Error && err.message) return err.message;
   return fallback;

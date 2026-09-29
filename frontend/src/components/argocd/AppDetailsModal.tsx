@@ -509,7 +509,7 @@ export const AppDetailsModal: React.FC<AppDetailsModalProps> = ({ name, canManag
                   )}
                 </Field>
                 {app.kubeorbit && (
-                  <Field label="KubeOrbit">
+                  <Field label="DevOps Intelligence">
                     {app.kubeorbit.project}
                     {app.kubeorbit.environment && ` · ${app.kubeorbit.environment}`}
                   </Field>

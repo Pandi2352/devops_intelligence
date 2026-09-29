@@ -1,7 +1,7 @@
 {
-  "name": "kubeorbit-backend",
+  "name": "devops-intelligence-backend",
   "version": "1.0.0",
-  "description": "KubeOrbit - Centralized Multi-Cluster Kubernetes, GitOps, and Application Delivery Platform Backend",
+  "description": "DevOps Intelligence - Centralized Multi-Cluster Kubernetes, GitOps, and Application Delivery Platform Backend",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
@@ -20,7 +20,7 @@
     "minikube",
     "rbac"
   ],
-  "author": "KubeOrbit Team",
+  "author": "DevOps Intelligence Team",
   "license": "MIT",
   "dependencies": {
     "@kubernetes/client-node": "^1.1.0",

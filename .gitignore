@@ -1,4 +1,4 @@
-# KubeOrbit monorepo: backend/, frontend/, devops-demo/, docs/
+# DevOps Intelligence monorepo: backend/, frontend/, devops-demo/, docs/
 # Sub-folders may add their own .gitignore (frontend/, devops-demo/*); this file covers the whole tree.
 
 # ---------------------------------------------------------------- dependencies
@@ -19,13 +19,13 @@ coverage/
 .nyc_output/
 
 # ---------------------------------------------------------------- environment & secrets
-# Real values live only on the machine that runs KubeOrbit; commit the *.example files.
+# Real values live only on the machine that runs DevOps Intelligence; commit the *.example files.
 .env
 .env.*
 !.env.example
 *.local
 
-# Keys, certificates and kubeconfigs (KubeOrbit stores credentials encrypted in MongoDB, never in files)
+# Keys, certificates and kubeconfigs (DevOps Intelligence stores credentials encrypted in MongoDB, never in files)
 *.pem
 *.key
 *.crt

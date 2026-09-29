@@ -1,4 +1,4 @@
-// Minimal Markdown parser for KubeOrbit's own docs (headings, paragraphs, lists, tables,
+// Minimal Markdown parser for DevOps Intelligence's own docs (headings, paragraphs, lists, tables,
 // code fences, blockquotes, rules). Inline formatting is handled by the renderer.
 
 export type Block =

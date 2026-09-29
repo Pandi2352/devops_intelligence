@@ -19,7 +19,7 @@ import { describeRequestError } from '../utils/httpError.js';
 const ENV_NAME = /^[a-z][a-z0-9-]{0,19}$/;
 const DNS_LABEL = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
 
-const actor = (req: AuthRequest) => req.user?.email || req.user?.name || 'KubeOrbit';
+const actor = (req: AuthRequest) => req.user?.email || req.user?.name || 'DevOps Intelligence';
 
 const loadProject = async (req: AuthRequest, res: Response) => {
   const project = isValidId(req.params.id) ? await Project.findById(req.params.id) : null;

@@ -8,7 +8,7 @@ import { resolveClients } from './clusterController.js';
 import { describeRequestError } from '../utils/httpError.js';
 import { isValidId } from '../utils/validation.js';
 
-// Environments = the ArgoCD apps mapped on a KubeOrbit project. For each one we combine:
+// Environments = the ArgoCD apps mapped on a DevOps Intelligence project. For each one we combine:
 //   ArgoCD      → sync/health, synced GitOps revision, live image
 //   GitOps repo → the image tag Git *wants* (overlay kustomization.yaml)
 //   CI image tag → <env>-<yyyymmddhhmm>-<sha8>-<pipelineId> → app commit + pipeline
@@ -553,7 +553,7 @@ export const promoteEnvironment = async (req: AuthRequest, res: Response): Promi
           '',
           ...(promotion.commits || []).map((c) => `- ${c.shortId} ${c.title} (${c.author})`),
           '',
-          `Opened from KubeOrbit by ${req.user?.name || req.user?.email || 'a KubeOrbit user'}.`,
+          `Opened from DevOps Intelligence by ${req.user?.name || req.user?.email || 'a DevOps Intelligence user'}.`,
         ].join('\n');
         const mr = await gl.post(`${repo}/merge_requests`, {
           source_branch: promotion.fromBranch,
@@ -705,7 +705,7 @@ export const rollbackEnvironment = async (req: AuthRequest, res: Response): Prom
     const updated = current
       .replace(/(newName:\s*)["']?[^\s"']+["']?/, `$1${oldName}`)
       .replace(/(newTag:\s*)["']?[^\s"']+["']?/, `$1${oldTag}`);
-    const who = req.user?.email || req.user?.name || 'KubeOrbit';
+    const who = req.user?.email || req.user?.name || 'DevOps Intelligence';
     await gl.put(`${gitopsProject}/repository/files/${file}`, {
       branch: 'main',
       content: updated,

@@ -104,7 +104,7 @@ export const AddEnvironmentModal: React.FC<AddEnvironmentModalProps> = ({ projec
       subtitle={
         result
           ? result.message
-          : 'KubeOrbit creates the namespace, registry pull secret, GitOps overlay, ArgoCD app, CI rule and a protected branch.'
+          : 'DevOps Intelligence creates the namespace, registry pull secret, GitOps overlay, ArgoCD app, CI rule and a protected branch.'
       }
       footer={
         result ? (

@@ -34,7 +34,7 @@ import {
   ROADMAP,
   RoadmapStatus,
   THREE_REPOS,
-} from '../data/kubeorbitGuide';
+} from '../data/gettingStartedGuide';
 import { ApprovalRequest, ArgoApplication, ArgoIntegration, Cluster, GitIntegration, GitRepo, PipelineRun } from '../types';
 
 interface ProjectSummary {
@@ -405,7 +405,7 @@ export const DocsPage: React.FC = () => {
     <div className="space-y-5">
       <PageHeader
         title="Getting Started"
-        description="Step-by-step setup for KubeOrbit, following the company GitLab CI → ArgoCD → Kubernetes workflow. Each step is checked live against your environment."
+        description="Step-by-step setup for DevOps Intelligence, following the company GitLab CI → ArgoCD → Kubernetes workflow. Each step is checked live against your environment."
         actions={
           <div className="flex gap-2">
             <Button size="sm" onClick={() => navigate('/guide')} leftIcon={<BookOpen size={13} />}>
@@ -565,7 +565,7 @@ export const DocsPage: React.FC = () => {
                         <td className="px-4 py-2.5 font-mono font-semibold text-slate-900">{st.stage}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap">{st.tool}</td>
                         <td className="px-4 py-2.5 min-w-[240px]">{st.purpose}</td>
-                        <td className="px-4 py-2.5 text-slate-500 min-w-[180px]">{st.inKubeOrbit}</td>
+                        <td className="px-4 py-2.5 text-slate-500 min-w-[180px]">{st.inPlatform}</td>
                       </tr>
                     ))}
                   </tbody>

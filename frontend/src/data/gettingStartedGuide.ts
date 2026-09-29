@@ -28,7 +28,7 @@ export interface GuideStep {
   dependsOn?: GuideStepId[];
   /** Where this step sits in docs/COMPANY_DEVOPS_WORKFLOW.md */
   workflowRef: string;
-  /** Present when part of the step still has to be done outside KubeOrbit. */
+  /** Present when part of the step still has to be done outside DevOps Intelligence. */
   platformGap?: string;
 }
 
@@ -36,7 +36,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   {
     id: 'cluster',
     title: 'Connect a Kubernetes cluster',
-    goal: 'KubeOrbit can reach at least one cluster (e.g. your local Minikube).',
+    goal: 'DevOps Intelligence can reach at least one cluster (e.g. your local Minikube).',
     why: 'Every deployment, namespace mapping and resource-browser view needs a reachable cluster.',
     actions: [
       'Start Minikube on your machine.',
@@ -53,7 +53,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     id: 'gitlab',
     title: 'Connect GitLab',
     goal: 'A GitLab connector is verified with a personal access token.',
-    why: 'KubeOrbit reads repositories, branches, commits and CI pipelines through this connector.',
+    why: 'DevOps Intelligence reads repositories, branches, commits and CI pipelines through this connector.',
     actions: [
       'In GitLab, create a personal access token with the read_api and read_user scopes (add api to trigger pipelines).',
       'Open Connectors → GitLab → "Add GitLab", paste the URL and token, click "Test connection", then save.',
@@ -99,7 +99,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     why: 'A project is the tenancy boundary: permissions, repos, namespaces and ArgoCD apps are all grouped by project.',
     actions: [
       'Open Projects → "New project". Pick the application repo and the GitOps repo from your GitLab connector, and the cluster.',
-      'On the project page press "Add environment" (e.g. dev, then qa, staging, prod). KubeOrbit creates the namespace, registry pull secret, GitOps overlay, ArgoCD app, protected branch and the DEPLOY_BRANCHES CI variable.',
+      'On the project page press "Add environment" (e.g. dev, then qa, staging, prod). DevOps Intelligence creates the namespace, registry pull secret, GitOps overlay, ArgoCD app, protected branch and the DEPLOY_BRANCHES CI variable.',
       'Every environment shows a checklist. A red item says what is wrong; "Fix" re-runs only the missing steps.',
       'The .gitlab-ci.yml in the app repo must deploy branches matching $DEPLOY_BRANCHES (see the demo) so new environments deploy without editing CI.',
     ],
@@ -160,7 +160,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     actions: [
       'If the manifest repo is private, register it in ArgoCD with a GitLab token (argocd repo add … or ArgoCD UI → Settings → Repositories).',
       'Apply an Application manifest like the one below (adjust repo, path and namespace).',
-      'Open ArgoCD GitOps in KubeOrbit: the app appears and can be synced with "Sync Now".',
+      'Open ArgoCD GitOps in DevOps Intelligence: the app appears and can be synced with "Sync Now".',
     ],
     commands: [
       {
@@ -195,7 +195,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     goal: 'Prometheus (and optionally Loki and Grafana) are added in Connectors → Observability.',
     why: 'Closes the loop: CPU, memory, restarts and logs for every environment, one click from the project.',
     actions: [
-      'Connectors → Observability → "Discover in cluster" finds Prometheus, Grafana and Loki services. Add them: KubeOrbit reaches them through the Kubernetes API proxy, no port-forward needed.',
+      'Connectors → Observability → "Discover in cluster" finds Prometheus, Grafana and Loki services. Add them: DevOps Intelligence reaches them through the Kubernetes API proxy, no port-forward needed.',
       'Logs: pick project → environment (or any namespace), then one pod, a whole deployment or every pod. Follow streams new lines; "Previous run" shows why a container crashed.',
       'Metrics: CPU, memory, restarts and throttling per pod from Prometheus, current usage from metrics-server, and links into Grafana dashboards.',
       'Live pod logs work without Loki. Loki adds history: logs of pods that were deleted or restarted long ago, searchable across pods.',
@@ -225,18 +225,18 @@ export interface PipelineStageInfo {
   stage: string;
   tool: string;
   purpose: string;
-  inKubeOrbit: string;
+  inPlatform: string;
 }
 
 export const PIPELINE_STAGES: PipelineStageInfo[] = [
-  { stage: 'code_scan', tool: 'Snyk (snyk-alpine)', purpose: 'Finds vulnerable npm dependencies before the build.', inKubeOrbit: 'Job status in GitLab Repositories → CI/CD Pipelines' },
-  { stage: 'sonar', tool: 'SonarQube', purpose: 'Code quality gate: smells, duplication, coverage, SAST.', inKubeOrbit: 'Job status' },
-  { stage: 'va_scan', tool: 'VAPT scripts', purpose: 'Additional vulnerability assessment.', inKubeOrbit: 'Job status' },
-  { stage: 'build', tool: 'node:20-alpine', purpose: 'npm run build, picks env files by branch, writes dockerimagename.txt.', inKubeOrbit: 'Job status' },
-  { stage: 'package', tool: 'docker:dind + Trivy', purpose: 'Builds and scans the image, pushes it to the GitLab registry.', inKubeOrbit: 'Job status (image tag tracking planned)' },
-  { stage: 'email-stage', tool: 'VAPT reporter', purpose: 'Emails Snyk / Trivy reports.', inKubeOrbit: 'Job status' },
-  { stage: 'kubeconfig', tool: 'yq-alpine', purpose: 'Renders kube-config.yaml: name, namespace, image, secrets, port 3000.', inKubeOrbit: 'Job status' },
-  { stage: 'publish_argocd', tool: 'ARGOCD_GIT_COMMIT', purpose: 'Commits the manifest to the GitOps repo; ArgoCD then syncs it.', inKubeOrbit: 'ArgoCD GitOps page (sync status, Sync Now)' },
+  { stage: 'code_scan', tool: 'Snyk (snyk-alpine)', purpose: 'Finds vulnerable npm dependencies before the build.', inPlatform: 'Job status in GitLab Repositories → CI/CD Pipelines' },
+  { stage: 'sonar', tool: 'SonarQube', purpose: 'Code quality gate: smells, duplication, coverage, SAST.', inPlatform: 'Job status' },
+  { stage: 'va_scan', tool: 'VAPT scripts', purpose: 'Additional vulnerability assessment.', inPlatform: 'Job status' },
+  { stage: 'build', tool: 'node:20-alpine', purpose: 'npm run build, picks env files by branch, writes dockerimagename.txt.', inPlatform: 'Job status' },
+  { stage: 'package', tool: 'docker:dind + Trivy', purpose: 'Builds and scans the image, pushes it to the GitLab registry.', inPlatform: 'Job status (image tag tracking planned)' },
+  { stage: 'email-stage', tool: 'VAPT reporter', purpose: 'Emails Snyk / Trivy reports.', inPlatform: 'Job status' },
+  { stage: 'kubeconfig', tool: 'yq-alpine', purpose: 'Renders kube-config.yaml: name, namespace, image, secrets, port 3000.', inPlatform: 'Job status' },
+  { stage: 'publish_argocd', tool: 'ARGOCD_GIT_COMMIT', purpose: 'Commits the manifest to the GitOps repo; ArgoCD then syncs it.', inPlatform: 'ArgoCD GitOps page (sync status, Sync Now)' },
 ];
 
 export const THREE_REPOS = [
@@ -285,8 +285,8 @@ export const ROADMAP: RoadmapItem[] = [
       'Real job logs, followed live while a job runs',
       'Test results per pipeline and real commit titles',
       'Pipelines auto-refresh while running',
-      'Create repositories and push starter code from KubeOrbit',
-      'Job reports (npm audit, Trivy, rendered manifests) inside KubeOrbit',
+      'Create repositories and push starter code from DevOps Intelligence',
+      'Job reports (npm audit, Trivy, rendered manifests) inside DevOps Intelligence',
     ],
     remaining: ['Image tag tracking per pipeline', 'Parsed security findings (severity counts) per pipeline'],
   },

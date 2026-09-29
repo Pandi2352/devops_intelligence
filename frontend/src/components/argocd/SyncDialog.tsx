@@ -47,7 +47,7 @@ export const SyncDialog: React.FC<SyncDialogProps> = ({ app, isSyncing, onCancel
           Currently <SyncPill status={app.sync.status} />
           {app.resourceCounts.outOfSync > 0 && <span className="text-amber-800">{app.resourceCounts.outOfSync} resource(s) differ from Git</span>}
         </div>
-        <p className="text-slate-600">KubeOrbit hard-refreshes from Git first, so the sync applies the latest commit on the target revision.</p>
+        <p className="text-slate-600">DevOps Intelligence hard-refreshes from Git first, so the sync applies the latest commit on the target revision.</p>
         <div className="space-y-3 p-3 rounded-md border border-slate-200 bg-slate-50/60">
           <Toggle
             id="sync-prune"

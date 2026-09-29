@@ -18,7 +18,7 @@ export interface IArgoAppMapping {
   appName: string;
   targetNamespace: string;
   serverUrl?: string;
-  /** Environment name shown in KubeOrbit (dev, qa, staging, prod…). Derived from the app name when empty. */
+  /** Environment name shown in DevOps Intelligence (dev, qa, staging, prod…). Derived from the app name when empty. */
   environment?: string;
   /** Git branch of the app repo that deploys to this environment (branch-per-environment flow). */
   branch?: string;

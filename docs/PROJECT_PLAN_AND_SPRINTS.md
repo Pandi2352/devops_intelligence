@@ -1,4 +1,4 @@
-# 🛰️ KubeOrbit — Enterprise DevOps & GitOps Platform Master Blueprint
+# 🛰️ DevOps Intelligence — Enterprise DevOps & GitOps Platform Master Blueprint
 
 > **System Mission**: A centralized DevOps platform inspired by Devtron, unifying **GitLab CI/CD**, **Container Registries**, **ArgoCD GitOps**, **Multi-Cluster Kubernetes (Minikube & Fleet)**, and **Full-Stack Observability (Prometheus/Loki/Grafana)** with strict **Project-Scoped RBAC** and **Manager Governance**.
 
@@ -77,7 +77,7 @@ The platform models and automates your company's exact 10-tier continuous delive
 
 ## 👥 2. Three Dedicated Persona Portals
 
-To eliminate chaos between management, developers, and platform engineers, KubeOrbit provides role-tailored workspaces:
+To eliminate chaos between management, developers, and platform engineers, DevOps Intelligence provides role-tailored workspaces:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -128,7 +128,7 @@ To eliminate chaos between management, developers, and platform engineers, KubeO
 | **Sprint 3** | Week 5–6 | **GitLab CI/CD Pipeline Tracking** | • GitLab CI Pipeline visualizer (8 stages: Snyk, Sonar, Build, DinD, Trivy, yq, ArgoCD)<br>• Artifact viewer (`snyk-report.json`, `trivy_scan_report.json`, `dockerimagename.txt`)<br>• Real-time build progress and image tag tracking |
 | **Sprint 4** | Week 7–8 | **ArgoCD GitOps Sync & Canary Rollout** | • Real ArgoCD connection via Minikube port-forward or API<br>• GitOps Sync trigger (`argocd app sync`)<br>• Canary traffic split slider (10% → 25% → 50% → 100%)<br>• Instant rollback to previous Git commit |
 | **Sprint 5** | Week 9–10 | **Manager Approval Workflows & RBAC Guardrails** | • Approval Queue UI for privileged operations (`prod` deploys, pod restart, replica scaling)<br>• Audit trail logging with timestamps and actor email<br>• Notification dispatch (Slack / Webhook / Email simulator) |
-| **Sprint 6** | Week 11–12 | **Prometheus, Loki & Grafana Observability** | • Embedded Grafana dashboards in KubeOrbit<br>• Prometheus metrics: Pod CPU/Memory, HTTP error rates<br>• Loki log stream aggregation across microservices |
+| **Sprint 6** | Week 11–12 | **Prometheus, Loki & Grafana Observability** | • Embedded Grafana dashboards in DevOps Intelligence<br>• Prometheus metrics: Pod CPU/Memory, HTTP error rates<br>• Loki log stream aggregation across microservices |
 
 ---
 
@@ -136,7 +136,7 @@ To eliminate chaos between management, developers, and platform engineers, KubeO
 
 ### A. The Developer Journey (e.g., Alice working on `demo-api`)
 1. Alice writes code locally in NestJS/Node and pushes to branch `dev`.
-2. She opens KubeOrbit at `http://localhost:5173`:
+2. She opens DevOps Intelligence at `http://localhost:5173`:
    - Her assigned project `demo-api` shows the active GitLab CI pipeline in progress.
    - She sees Snyk scan passed and SonarQube quality gate passed.
 3. Once the image is pushed and ArgoCD syncs:
@@ -156,7 +156,7 @@ To eliminate chaos between management, developers, and platform engineers, KubeO
    - Reviews the Snyk security report (0 Criticals) and Trivy image scan (Clean).
    - Verifies the target environment is `production` (Namespace: `dms-prod-apps`).
    - Clicks **Approve & Deploy**.
-3. KubeOrbit signals ArgoCD to sync the production manifest, and the manager observes the zero-downtime rolling update.
+3. DevOps Intelligence signals ArgoCD to sync the production manifest, and the manager observes the zero-downtime rolling update.
 
 ---
 

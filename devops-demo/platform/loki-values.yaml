@@ -1,4 +1,4 @@
-# Loki + Promtail for KubeOrbit's log history (Logs → History (Loki)).
+# Loki + Promtail for DevOps Intelligence's log history (Logs → History (Loki)).
 #   helm repo add grafana https://grafana.github.io/helm-charts
 #   helm install loki grafana/loki-stack --version 2.10.3 -n monitoring -f devops-demo/platform/loki-values.yaml
 loki:

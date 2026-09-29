@@ -45,10 +45,10 @@ export const Sidebar: React.FC = () => {
         </div>
         <div>
           <span className="font-bold text-base tracking-tight text-slate-900">
-            Kube<span className="text-sky-600">Orbit</span>
+            DevOps <span className="text-sky-600">Intelligence</span>
           </span>
           <span className="block text-[10px] text-slate-500 font-mono tracking-wide uppercase">
-            DevOps Platform
+            Kubernetes · GitOps · CI/CD
           </span>
         </div>
       </div>

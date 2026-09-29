@@ -67,7 +67,7 @@ export const getScopes = async (_req: AuthRequest, res: Response): Promise<void>
       },
     });
   } catch (err) {
-    fail(res, err, 'KubeOrbit', 500);
+    fail(res, err, 'DevOps Intelligence', 500);
   }
 };
 
@@ -577,7 +577,7 @@ export const createObservabilityConnector = async (req: AuthRequest, res: Respon
     await doc.save();
     res.status(201).json({ message: `${doc.name} added. ${test.message}`, test, connector: serializeObservability(doc) });
   } catch (err) {
-    fail(res, err, 'KubeOrbit', 500);
+    fail(res, err, 'DevOps Intelligence', 500);
   }
 };
 
@@ -607,7 +607,7 @@ export const updateObservabilityConnector = async (req: AuthRequest, res: Respon
     await doc.save();
     res.json({ message: `${doc.name} saved. ${test.message}`, test, connector: serializeObservability(doc) });
   } catch (err) {
-    fail(res, err, 'KubeOrbit', 500);
+    fail(res, err, 'DevOps Intelligence', 500);
   }
 };
 

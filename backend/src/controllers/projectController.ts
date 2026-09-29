@@ -106,7 +106,7 @@ const repoFromUrl = (url: string, role: 'app' | 'gitops', branch = 'main'): IGit
   return { name, repoUrl: url.trim(), branch, provider: url.includes('github.com') ? 'github' : 'gitlab', role };
 };
 
-// Structured input from the KubeOrbit Projects page: one app repo, one GitOps repo, one cluster.
+// Structured input from the DevOps Intelligence Projects page: one app repo, one GitOps repo, one cluster.
 const applyStructuredInput = (project: IProject, body: any): string | null => {
   const repos = [...(project.gitLabRepos || [])];
   for (const role of ['app', 'gitops'] as const) {

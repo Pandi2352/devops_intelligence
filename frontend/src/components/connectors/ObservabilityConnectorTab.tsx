@@ -111,7 +111,7 @@ const DiscoverModal: React.FC<DiscoverModalProps> = ({ onClose, onAdded }) => {
       maxWidth="lg"
       icon={<Radar size={18} />}
       title="Discover in cluster"
-      subtitle="Finds Prometheus, Grafana and Loki services. KubeOrbit reaches them through the cluster's service proxy, so no port-forward is needed."
+      subtitle="Finds Prometheus, Grafana and Loki services. DevOps Intelligence reaches them through the cluster's service proxy, so no port-forward is needed."
       footer={<Button onClick={onClose}>Done</Button>}
     >
       <div className="space-y-3">

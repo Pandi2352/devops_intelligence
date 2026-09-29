@@ -1,6 +1,6 @@
 # Tells Prometheus (kube-prometheus-stack) to scrape demo-api's /metrics every 15s.
 # The release label is what the stack's Prometheus selects ServiceMonitors by.
-# Result in KubeOrbit → Metrics: request rate, latency and error rate per environment.
+# Result in DevOps Intelligence → Metrics: request rate, latency and error rate per environment.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

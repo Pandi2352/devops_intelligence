@@ -488,7 +488,7 @@ export const createGitLabProject = async (req: AuthRequest, res: Response): Prom
     const visibility = VISIBILITIES.includes(req.body.visibility) ? req.body.visibility : 'private';
     const description = cleanString(req.body.description, 500);
     const template = cleanString(req.body.template, 100);
-    const commitMessage = cleanString(req.body.commitMessage, 200) || 'chore: initial commit from KubeOrbit';
+    const commitMessage = cleanString(req.body.commitMessage, 200) || 'chore: initial commit from DevOps Intelligence';
 
     if (!name || !repoPath) {
       res.status(400).json({ message: 'Project name is required' });
@@ -555,7 +555,7 @@ export const pushWorkspaceTemplate = async (req: AuthRequest, res: Response): Pr
 
     const template = cleanString(req.body.template, 100);
     const branch = cleanString(req.body.branch, 200) || 'main';
-    const commitMessage = cleanString(req.body.commitMessage, 200) || `chore: update from KubeOrbit template ${template}`;
+    const commitMessage = cleanString(req.body.commitMessage, 200) || `chore: update from DevOps Intelligence template ${template}`;
     if (!listTemplates().some((t) => t.name === template)) {
       res.status(400).json({ message: `Template '${template}' not found` });
       return;
@@ -915,7 +915,7 @@ const MAX_REPORT_BYTES = 512 * 1024;
 const TEXT_REPORT = /\.(txt|log|json|ya?ml|xml|md|csv|sarif|html?)$/i;
 
 // Files a job saved as artifacts (npm-audit.txt, trivy-report.txt, kube-config.yaml, junit.xml…),
-// with the content of text reports so KubeOrbit can show them without opening GitLab.
+// with the content of text reports so DevOps Intelligence can show them without opening GitLab.
 export const fetchJobArtifacts = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const integration = await loadActiveIntegration(req.params.id, res);

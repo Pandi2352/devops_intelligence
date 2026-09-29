@@ -36,7 +36,7 @@ workflow:
     - if: $CI_COMMIT_BRANCH
 
 # Jobs that only run on environment branches. DEPLOY_ENV = the branch name.
-# KubeOrbit keeps the DEPLOY_BRANCHES CI/CD variable (e.g. /^(dev|qa|uat|staging|prod)$/)
+# DevOps Intelligence keeps the DEPLOY_BRANCHES CI/CD variable (e.g. /^(dev|qa|uat|staging|prod)$/)
 # in sync with the project's environments; the fixed list is the fallback when it is unset.
 .environment_branch:
   rules:

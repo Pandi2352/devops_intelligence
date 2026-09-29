@@ -1,8 +1,8 @@
 # devops-demo: learn DevOps one stage at a time
 
 `demo-api` is a small Express service you push to GitLab and grow **one stage at a time**.
-After every stage you push, then check what **KubeOrbit** shows. Anything KubeOrbit
-cannot show yet goes on the KubeOrbit build list for that stage.
+After every stage you push, then check what **DevOps Intelligence** shows. Anything DevOps Intelligence
+cannot show yet goes on the DevOps Intelligence build list for that stage.
 
 ```
 devops-demo/
@@ -12,7 +12,7 @@ devops-demo/
 
 ## The stages
 
-| # | Stage | You add | After you push, KubeOrbit should show |
+| # | Stage | You add | After you push, DevOps Intelligence should show |
 |---|---|---|---|
 | **1** | **Code + tests in CI** | app, tests, 1-job `.gitlab-ci.yml` | repo, commit, branch, pipeline with a `build` job and test results |
 | 2 | Security scan | `code_scan` job (npm audit) | 2-stage pipeline, scan pass/fail, audit report |
@@ -27,7 +27,7 @@ devops-demo/
 
 ## Stage 1: code + tests in CI
 
-**Goal:** every `git push` runs the tests automatically, and you can see it happen in KubeOrbit.
+**Goal:** every `git push` runs the tests automatically, and you can see it happen in DevOps Intelligence.
 
 ### 1. Run it on your laptop
 
@@ -49,12 +49,12 @@ curl http://localhost:3000/metrics          # Prometheus metrics (used in stage 
 ```
 
 Watch the terminal running `npm run dev`: each request is one JSON log line. That is
-exactly what you will see later in KubeOrbit's pod **Logs** tab.
+exactly what you will see later in DevOps Intelligence's pod **Logs** tab.
 
-### 2 + 3. Create the GitLab project and push: from KubeOrbit
+### 2 + 3. Create the GitLab project and push: from DevOps Intelligence
 
 **GitLab Repositories → New repository**: pick the GitLab account, name `kubeorbit-demo-api`,
-starter code `demo-api`. KubeOrbit creates the project and pushes this folder as the first commit
+starter code `demo-api`. DevOps Intelligence creates the project and pushes this folder as the first commit
 (`node_modules` and `.gitignore`d files are skipped). The pipeline starts immediately.
 
 For later stages, edit files here and use **Push code** on the repo: it commits only the files
@@ -78,7 +78,7 @@ The push starts a pipeline with one job, `build`, which runs `npm ci` and `npm r
 > No pipeline? On gitlab.com, shared runners need a verified account
 > (Settings → CI/CD → Runners). On a self-managed GitLab, ask for a runner with the Docker executor.
 
-### 4. Check in KubeOrbit
+### 4. Check in DevOps Intelligence
 
 | Where | What you should see |
 |---|---|
@@ -94,20 +94,20 @@ The push starts a pipeline with one job, `build`, which runs `npm ci` and `npm r
 ### 5. Break it on purpose
 
 Change an assertion in `test/app.test.js` (e.g. expect `'demo-apix'`), commit, push.
-The pipeline fails. In KubeOrbit the pipeline turns red and the `build` stage shows failed.
+The pipeline fails. In DevOps Intelligence the pipeline turns red and the `build` stage shows failed.
 Revert the change and push again: green.
 
 **What you learned:** CI = every change is tested automatically on a clean machine
 (`npm ci` in a fresh `node:20-alpine` container), not "works on my laptop".
 
-### KubeOrbit for stage 1: done
+### DevOps Intelligence for stage 1: done
 
-After a push, KubeOrbit now shows everything without opening GitLab:
+After a push, DevOps Intelligence now shows everything without opening GitLab:
 
 1. **Real job logs.** Click the `build` stage: the actual runner log, with commands highlighted,
    line filter and copy. It follows the log live while the job runs.
 2. **Test results.** `Tests 9/9 passed` on each pipeline (red with the failed count when a test breaks).
-3. **Real commit title and author**, plus how it started (pushed / run from KubeOrbit / scheduled).
+3. **Real commit title and author**, plus how it started (pushed / run from DevOps Intelligence / scheduled).
 4. **Auto-refresh.** Running pipelines update every 5 seconds on their own.
 
 ---
@@ -139,7 +139,7 @@ feature branch ──MR──▶ dev ──MR──▶ qa ──MR──▶ stag
 
 1. **Promotion merges are fast-forward only** (project setting *Merge method: fast-forward*).
    Merging `dev → qa` moves `qa` to the exact commit `dev` tested: no merge commit, no new code.
-   If `qa` ever has a commit `dev` does not (a hotfix), KubeOrbit reports *diverged*: merge it back
+   If `qa` ever has a commit `dev` does not (a hotfix), DevOps Intelligence reports *diverged*: merge it back
    into `dev` first, then promote again.
 2. **Each environment builds its own image**, in its own registry path, with the environment baked in:
 
@@ -157,7 +157,7 @@ feature branch ──MR──▶ dev ──MR──▶ qa ──MR──▶ stag
 
 ### Add an environment (e.g. `uat`)
 
-KubeOrbit → **Projects** → `kubeorbit-demo` → **Add environment**. One form, and KubeOrbit sets up:
+DevOps Intelligence → **Projects** → `kubeorbit-demo` → **Add environment**. One form, and DevOps Intelligence sets up:
 
 | Item | What is created |
 |---|---|
@@ -174,9 +174,9 @@ list until the change is promoted into it, and the project page shows exactly th
 Each environment has a checklist; **Fix** re-runs only the missing items, **Remove** deletes the ArgoCD app
 (and optionally the namespace) but keeps the branch and overlay for history.
 
-### Promote with KubeOrbit
+### Promote with DevOps Intelligence
 
-KubeOrbit → **Environments** → project `kubeorbit-demo` shows the four environments (branch, branch head,
+DevOps Intelligence → **Environments** → project `kubeorbit-demo` shows the four environments (branch, branch head,
 latest pipeline, running commit, image, GitOps revision, pods) and the promotion path below them.
 For each step the panel offers the next action:
 
@@ -195,7 +195,7 @@ Every action asks for confirmation and needs a Super Admin or DevOps user.
 ### Do the loop yourself
 
 1. Change something visible in `demo-api/` (e.g. a new endpoint, or `APP_MESSAGE` default).
-2. KubeOrbit → GitLab Repositories → `kubeorbit-demo-api` → **Push code** → branch **dev**.
+2. DevOps Intelligence → GitLab Repositories → `kubeorbit-demo-api` → **Push code** → branch **dev**.
 3. Watch the `dev` pipeline (auto-refreshing; click jobs for live logs). `package:docker` says it *built* the image.
 4. Environments: dev picks it up automatically. **dev → qa: Open merge request**, then **Merge**.
 5. The `qa` pipeline builds the qa image (`…/kubeorbit-demo-api/qa:…`) and qa updates.
@@ -215,7 +215,7 @@ Click any pipeline job, then **Reports**, for `npm-audit.txt`, `trivy-report.txt
 | GitOps repo | `mvp.bose23/kubeorbit-demo-api-gitops` (this folder: `demo-api-gitops/`) |
 | Images | `registry.gitlab.com/mvp.bose23/kubeorbit-demo-api/<env>:<env>-<date>-<sha>-<pipeline>` |
 | ArgoCD | `https://localhost:8081` (`kubectl port-forward svc/argocd-server -n argocd 8081:443`) |
-| KubeOrbit project | `kubeorbit-demo` (each ArgoCD app mapped with its `environment` and `branch`) |
+| DevOps Intelligence project | `kubeorbit-demo` (each ArgoCD app mapped with its `environment` and `branch`) |
 
 Credentials, each limited to one job:
 
@@ -227,7 +227,7 @@ Credentials, each limited to one job:
 
 ### Roll back
 
-Environments → card → **History** → **Roll back here** on an earlier deploy. KubeOrbit commits that deploy's
+Environments → card → **History** → **Roll back here** on an earlier deploy. DevOps Intelligence commits that deploy's
 image back into the overlay (`rollback(<env>): demo-api <tag> (was <tag>) by <you>`) and syncs ArgoCD at once.
 The card and promotion path then show *Rolled back*: the branch still holds the newer code. Either fix forward
 on `dev` and promote again, or press **Redeploy head** to rebuild and deploy the branch head.
@@ -241,15 +241,15 @@ Verified on qa: rolled back `38d6099b → c7712c27`, then redeployed `38d6099b`.
   *image*, not just `package.json`. The gate is still `allow_failure: true`; set it to `false` now.
 - **A YAML colon broke the pipeline**: `git commit -m "deploy(dev): …"` unquoted is a YAML map. Quote
   whole script lines that contain `: `. GitLab's CI Lint catches this before you push.
-- **Two syncs collided**: KubeOrbit asked ArgoCD to sync while auto-sync was already applying the change
+- **Two syncs collided**: DevOps Intelligence asked ArgoCD to sync while auto-sync was already applying the change
   (`another operation is already in progress`). Sync now waits for the running operation and retries.
-- **ArgoCD caches Git revisions** for a few minutes. KubeOrbit's Sync now hard-refreshes first, and the
+- **ArgoCD caches Git revisions** for a few minutes. DevOps Intelligence's Sync now hard-refreshes first, and the
   Environments page compares what is *running* with the branch head, not just the branches.
 
-### KubeOrbit build list
+### DevOps Intelligence build list
 
 1. ~~What is running where~~: done, **Environments**.
-2. ~~Promotion from KubeOrbit~~: done, publish-job flow and branch/merge-request flow.
+2. ~~Promotion from DevOps Intelligence~~: done, publish-job flow and branch/merge-request flow.
 3. ~~Rollback~~: done, History → Roll back here, and Redeploy head.
 4. ~~ArgoCD app details~~: done, Details (resources, sync history, last operation). A full Git-vs-cluster diff is still open.
 5. ~~Job reports~~: done, job → Reports tab.

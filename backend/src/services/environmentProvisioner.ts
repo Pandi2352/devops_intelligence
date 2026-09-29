@@ -157,7 +157,7 @@ const ciDeploysBranch = async (ctx: ProjectContext, branch: string, ref = branch
   for (const match of text.matchAll(/\$CI_COMMIT_BRANCH\s*=~\s*\/(.+?)\/([a-z]*)/g)) {
     if (new RegExp(match[1], match[2]).test(branch)) return { ok: true, detail: `CI rule /${match[1]}/ matches ${branch}` };
   }
-  return { ok: false, detail: `The CI rules do not deploy branch ${branch}. Use $${CI_VARIABLE} in .gitlab-ci.yml so KubeOrbit can manage it.` };
+  return { ok: false, detail: `The CI rules do not deploy branch ${branch}. Use $${CI_VARIABLE} in .gitlab-ci.yml so DevOps Intelligence can manage it.` };
 };
 
 // ArgoCD answers 403 (not 404) for an application that does not exist, so it cannot leak app names.
@@ -258,7 +258,7 @@ const buildOverlay = async (ctx: ProjectContext, spec: EnvironmentSpec) => {
       .replace(new RegExp(`(newName:\\s*\\S+)/${templateEnv}(\\s*)$`, 'm'), `$1/${env}$2`)
       .replace(/newTag:.*$/m, 'newTag: not-built-yet');
     text = text.replace(/^(#.*\r?\n)+/, '');
-    text = `# ${env}: created by KubeOrbit from the ${templateEnv} overlay.\n# CI sets images[0] with yq on every ${env} branch build.\n${text}`;
+    text = `# ${env}: created by DevOps Intelligence from the ${templateEnv} overlay.\n# CI sets images[0] with yq on every ${env} branch build.\n${text}`;
 
     // Copy files the template overlay references locally (e.g. pdb.yaml).
     const extra: { file: string; content: string }[] = [];
@@ -339,7 +339,7 @@ export const provisionEnvironment = async (ctx: ProjectContext, spec: Environmen
     if (!overlay) return ['failed', `No existing overlay to copy from. Add ${path} to ${ctx.gitopsRepo}.`];
     await ctx.gl.post(`${proj(ctx.gitopsRepo)}/repository/commits`, {
       branch: 'main',
-      commit_message: `feat(${spec.name}): add ${spec.name} environment overlay (KubeOrbit, ${actor})`,
+      commit_message: `feat(${spec.name}): add ${spec.name} environment overlay (DevOps Intelligence, ${actor})`,
       actions: [
         { action: 'create', file_path: path, content: overlay.kustomization },
         ...overlay.extra.map((f) => ({ action: 'create', file_path: `${spec.overlayPath}/${f.file}`, content: f.content })),

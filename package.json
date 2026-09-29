@@ -1,7 +1,7 @@
 {
-  "name": "kubeorbit-workspace",
+  "name": "devops-intelligence-workspace",
   "version": "1.0.0",
-  "description": "KubeOrbit - Centralized DevOps Platform for Kubernetes, GitOps, and Progressive Delivery",
+  "description": "DevOps Intelligence - Centralized DevOps Platform for Kubernetes, GitOps, and Progressive Delivery",
   "private": true,
   "scripts": {
     "dev:backend": "npm --prefix backend run dev",

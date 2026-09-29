@@ -195,7 +195,7 @@ export const ClusterConnectorTab: React.FC<ConnectorTabProps<Cluster>> = ({ coll
         message={
           <>
             <strong className="font-mono font-semibold">{tab.deleteTarget?.name}</strong> and its saved credentials will be removed
-            from KubeOrbit. The cluster itself is not affected.
+            from DevOps Intelligence. The cluster itself is not affected.
             {tab.deleteTarget?.source === 'kubeconfig' && (
               <span className="block mt-2 text-xs text-slate-500">
                 It is still in the server's kubeconfig, so it will come back on the next sync.

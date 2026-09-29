@@ -36,7 +36,7 @@ type FormValues = {
 
 const KIND_OPTIONS: { value: ObservabilityKind; label: string; description: string }[] = [
   { value: 'prometheus', label: 'Prometheus', description: 'Metrics: CPU, memory, restarts' },
-  { value: 'grafana', label: 'Grafana', description: 'Dashboards to open from KubeOrbit' },
+  { value: 'grafana', label: 'Grafana', description: 'Dashboards to open from DevOps Intelligence' },
   { value: 'loki', label: 'Loki', description: 'Log history beyond the pod' },
 ];
 
@@ -244,7 +244,7 @@ export const ObservabilityConnectorModal: React.FC<ObservabilityConnectorModalPr
       </FormField>
 
       <div>
-        <span className="block text-xs font-semibold text-slate-700 mb-1.5">How KubeOrbit reaches it</span>
+        <span className="block text-xs font-semibold text-slate-700 mb-1.5">How DevOps Intelligence reaches it</span>
         <SegmentedControl name="ob-access" value={values.access} options={ACCESS_OPTIONS} onChange={(v) => update('access', v)} />
       </div>
 

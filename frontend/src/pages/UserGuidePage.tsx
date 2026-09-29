@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { ArrowUp, BookOpen, Download, ListChecks, Search } from 'lucide-react';
 import { MarkdownView } from '../components/docs/MarkdownView';
 import { parseMarkdown } from '../utils/markdown';
-import guideSource from '../../../docs/KUBEORBIT_USER_GUIDE.md?raw';
+import guideSource from '../../../docs/DEVOPS_INTELLIGENCE_USER_GUIDE.md?raw';
 
-// Renders docs/KUBEORBIT_USER_GUIDE.md, the single source for the user guide.
+// Renders docs/DEVOPS_INTELLIGENCE_USER_GUIDE.md, the single source for the user guide.
 export const UserGuidePage: React.FC = () => {
   const blocks = useMemo(() => parseMarkdown(guideSource), []);
   const toc = useMemo(() => blocks.filter((b) => b.type === 'heading' && (b.level === 2 || b.level === 3)) as Extract<(typeof blocks)[number], { type: 'heading' }>[], [blocks]);
@@ -44,7 +44,7 @@ export const UserGuidePage: React.FC = () => {
     const url = URL.createObjectURL(new Blob([guideSource], { type: 'text/markdown' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'KUBEORBIT_USER_GUIDE.md';
+    a.download = 'DEVOPS_INTELLIGENCE_USER_GUIDE.md';
     a.click();
     URL.revokeObjectURL(url);
   };

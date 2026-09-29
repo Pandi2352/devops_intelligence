@@ -64,7 +64,7 @@ export const CreateRepoModal: React.FC<CreateRepoModalProps> = ({ integrations, 
       description: '',
       visibility: 'private',
       template: '',
-      commitMessage: 'feat: initial commit from KubeOrbit',
+      commitMessage: 'feat: initial commit from DevOps Intelligence',
     },
     validate
   );

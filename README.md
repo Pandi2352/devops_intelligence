@@ -1,12 +1,12 @@
-# 🚀 KubeOrbit (Centralized DevOps & GitOps Platform)
+# 🚀 DevOps Intelligence (Centralized DevOps & GitOps Platform)
 
-> **KubeOrbit** is a centralized, next-generation DevOps platform inspired by Devtron, designed to manage multi-cluster Kubernetes environments, automate progressive delivery (Canary, Blue-Green, Rolling Updates), integrate declaratively with **ArgoCD**, and connect seamlessly with **GitHub** and **GitLab**.
+> **DevOps Intelligence** is a centralized, next-generation DevOps platform inspired by Devtron, designed to manage multi-cluster Kubernetes environments, automate progressive delivery (Canary, Blue-Green, Rolling Updates), integrate declaratively with **ArgoCD**, and connect seamlessly with **GitHub** and **GitLab**.
 
 ---
 
 ## 🌟 Unique Project Name Options
 
-1. **KubeOrbit** *(Selected Default)* — The unified flight deck for multi-cluster Kubernetes, GitOps, and microservice lifecycles.
+1. **DevOps Intelligence** *(Selected Default)* — The unified flight deck for multi-cluster Kubernetes, GitOps, and microservice lifecycles.
 2. **NexaOps** — Next-generation automated GitOps orchestrator.
 3. **CloudWeaver** — Weaving together multi-cluster K8s, ArgoCD, and modern CI/CD pipelines.
 4. **AegisOps** — Secure, enterprise-grade RBAC Kubernetes control center.
@@ -37,7 +37,7 @@
   - `src/components/git/`: `GitProviderCard`, `AddGitModal`
   - `src/components/argocd/`: `ArgoStatusCard`, `ArgoConfigModal`
   - `src/components/rbac/`: `UserTable`, `EditRoleModal`
-  - `src/pages/`: `DashboardPage`, `ProjectsPage`, `ProjectDetailPage`, `EnvironmentsPage`, `ArgoPage`, `GitPage`, `LogsPage`, `MetricsPage`, `ResourceBrowserPage`, `ConnectorsPage`, `DocsPage`, `UserGuidePage`, `RbacPage`, `LoginPage` (full guide: `docs/KUBEORBIT_USER_GUIDE.md`)
+  - `src/pages/`: `DashboardPage`, `ProjectsPage`, `ProjectDetailPage`, `EnvironmentsPage`, `ArgoPage`, `GitPage`, `LogsPage`, `MetricsPage`, `ResourceBrowserPage`, `ConnectorsPage`, `DocsPage`, `UserGuidePage`, `RbacPage`, `LoginPage` (full guide: `docs/DEVOPS_INTELLIGENCE_USER_GUIDE.md`)
 
 ---
 

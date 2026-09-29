@@ -50,7 +50,7 @@ export const LoginPage: React.FC = () => {
             <Boxes size={24} />
           </div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-            Kube<span className="text-sky-600">Orbit</span>
+            DevOps <span className="text-sky-600">Intelligence</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Centralized DevOps, Kubernetes & GitOps Platform
