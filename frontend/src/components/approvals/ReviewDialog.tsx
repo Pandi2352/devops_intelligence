@@ -5,6 +5,8 @@ import { Button } from '../common/Button';
 import { FormField, TextArea } from '../common/Form';
 import { ApprovalItem } from '../../api/approvalApi';
 import { ACTION_LABEL } from './approvalMeta';
+import { ReleaseCheckList } from '../security/SecurityChips';
+import { isReleaseCheckList } from '../security/securityMeta';
 
 const SELF_APPROVAL_MIN = 10;
 
@@ -23,6 +25,8 @@ export const ReviewDialog: React.FC<ReviewDialogProps> = ({ request, decision, b
   if (!request) return null;
   const approving = decision === 'APPROVED';
   const selfApproval = approving && request.mine;
+  const releaseChecks = isReleaseCheckList(request.context?.releaseChecks) ? request.context.releaseChecks : [];
+  const failing = releaseChecks.some((c) => c.status === 'fail');
   const tooShort = selfApproval && comment.trim().length < SELF_APPROVAL_MIN;
 
   return (
@@ -51,6 +55,13 @@ export const ReviewDialog: React.FC<ReviewDialogProps> = ({ request, decision, b
           <p className="text-xs text-slate-500">
             Approving runs the action right away, as <span className="font-semibold">{request.requestedByName || request.requestedBy}</span>. You can follow it on this page.
           </p>
+        )}
+        {releaseChecks.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-[11px] font-semibold text-slate-700">Release checks</div>
+            <ReleaseCheckList checks={releaseChecks} compact />
+            {approving && failing && <p className="text-[11px] text-rose-700">Some checks fail. Make sure the risk is understood before approving.</p>}
+          </div>
         )}
         {selfApproval && (
           <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs flex gap-2">

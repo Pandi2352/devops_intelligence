@@ -1,0 +1,95 @@
+# SonarQube Community Build (free) for local code-quality analysis, reached by DevOps Intelligence through
+# the Kubernetes service proxy (no port-forward needed). Analyses are run by DevOps Intelligence as
+# Kubernetes Jobs (Project → Security → Run analysis), so GitLab.com runners never need to reach it.
+#   kubectl apply -f sonarqube.yaml
+#   UI: kubectl -n sonarqube port-forward svc/sonarqube 9000:9000  →  http://localhost:9000
+# Uses the embedded H2 database: fine for a laptop, not for production (use PostgreSQL there).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sonarqube
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-data
+  namespace: sonarqube
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube
+  namespace: sonarqube
+  labels:
+    app.kubernetes.io/name: sonarqube
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # one instance owns the data volume
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarqube
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sonarqube
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: sonarqube
+          image: sonarqube:community
+          ports:
+            - name: http
+              containerPort: 9000
+          env:
+            # The node's vm.max_map_count is too low for Elasticsearch's production checks on minikube.
+            - name: SONAR_ES_BOOTSTRAP_CHECKS_DISABLE
+              value: "true"
+            # Do not send usage statistics to SonarSource.
+            - name: SONAR_TELEMETRY_ENABLE
+              value: "false"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 2Gi
+            limits:
+              memory: 3Gi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/sonarqube/data
+              subPath: data
+            - name: data
+              mountPath: /opt/sonarqube/extensions
+              subPath: extensions
+          readinessProbe:
+            httpGet:
+              path: /api/system/status
+              port: 9000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: sonarqube-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube
+  namespace: sonarqube
+  labels:
+    app.kubernetes.io/name: sonarqube
+spec:
+  selector:
+    app.kubernetes.io/name: sonarqube
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http

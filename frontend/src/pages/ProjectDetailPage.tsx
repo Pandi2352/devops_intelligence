@@ -40,8 +40,9 @@ import { Pagination } from '../components/common/Pagination';
 import { AuditLogTable } from '../components/approvals/AuditLogTable';
 import { EnvApprovalToggle } from '../components/approvals/EnvApprovalToggle';
 import { ProjectDomainsPanel } from '../components/domains/ProjectDomainsPanel';
+import { ProjectSecurityPanel } from '../components/security/ProjectSecurityPanel';
 
-type DetailTab = 'overview' | 'setup' | 'domains' | 'audit';
+type DetailTab = 'overview' | 'setup' | 'domains' | 'security' | 'audit';
 
 const InfoCard: React.FC<{ icon: React.ReactNode; label: string; children: React.ReactNode }> = ({ icon, label, children }) => (
   <div className="rounded-lg border border-slate-200 bg-white p-3 min-w-0">
@@ -91,7 +92,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [argoError, setArgoError] = useState<string | undefined>();
   const [params, setParams] = useSearchParams();
   const tabParam = params.get('tab');
-  const tab: DetailTab = tabParam === 'setup' || tabParam === 'domains' || tabParam === 'audit' ? tabParam : 'overview';
+  const tab: DetailTab = tabParam === 'setup' || tabParam === 'domains' || tabParam === 'security' || tabParam === 'audit' ? tabParam : 'overview';
   const setTab = (t: DetailTab) =>
     setParams(
       (prev) => {
@@ -222,6 +223,7 @@ export const ProjectDetailPage: React.FC = () => {
     { key: 'overview', label: 'Overview', badge: 0 },
     { key: 'setup', label: 'Setup checklist', badge: incomplete },
     { key: 'domains', label: 'Domains', badge: 0 },
+    { key: 'security', label: 'Security', badge: 0 },
     { key: 'audit', label: 'Audit log', badge: 0 },
   ];
 
@@ -381,6 +383,8 @@ export const ProjectDetailPage: React.FC = () => {
       )}
 
       {tab === 'domains' && <ProjectDomainsPanel projectId={project._id} projectName={project.name} />}
+
+      {tab === 'security' && <ProjectSecurityPanel projectId={project._id} projectName={project.name} />}
 
       {tab === 'audit' && (
         <section className="space-y-2">

@@ -473,6 +473,49 @@ by hand as described in the file.
 Adding, editing and deleting DNS connectors and tunnels is recorded in the **Audit log** (*Connector*);
 record changes as *DNS change*.
 
+### B8. Security: Trivy (image CVEs) and SonarQube (code quality)
+
+Both are **free and run on minikube**. Trivy is open source (Apache 2.0). SonarQube Community Build is free and
+analyses each project's main branch (branch and merge-request analysis need a paid edition).
+
+**Trivy Operator** scans the image of every running workload and stores a `VulnerabilityReport` per
+container. DevOps Intelligence only reads those reports: no credentials.
+
+```bash
+helm repo add aqua https://aquasecurity.github.io/helm-charts/
+helm install trivy-operator aqua/trivy-operator -n trivy-system --create-namespace \
+  -f devops-demo/platform/trivy-operator-values.yaml
+# the first vulnerability-database download is slow: give the server's liveness probe 10 minutes
+kubectl -n trivy-system patch statefulset trivy-server --type=json \
+  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/failureThreshold","value":60}]'
+# REQUIRED on Docker Desktop / WSL2 minikube: without this, kube-proxy stops routing Services cluster-wide
+kubectl -n trivy-system patch svc trivy-service --type=merge -p '{"spec":{"sessionAffinity":"None"}}'
+```
+
+> **Why the second patch:** the chart gives `trivy-service` *session affinity*, which needs a kernel
+> module the WSL2 kernel does not have. kube-proxy then fails every update and new or changed Services
+> stop answering (symptom: `curl http://<service>.<namespace>.svc…` times out while the pod IP works;
+> the kube-proxy log shows `Extension recent is not supported`).
+
+The values file skips platform namespaces, scans only current images, re-scans daily, and uses one
+built-in Trivy server so the database (~800 MB) is downloaded once. First reports appear a few minutes
+after the database is ready. **Connectors → Security → Trivy Operator** shows, per cluster, whether it
+is installed and ready and how many reports exist.
+
+**SonarQube** (about 2–3 GB of memory):
+
+```bash
+kubectl apply -f devops-demo/platform/sonarqube.yaml
+kubectl -n sonarqube port-forward svc/sonarqube 9000:9000     # UI: http://localhost:9000
+```
+
+First start takes a few minutes. Sign in as `admin`, set a new password, then *My Account → Security →
+Generate token* (type **User token**). In **Connectors → Security → Add SonarQube** (or **Discover in
+cluster**): *Through cluster*, cluster `minikube`, namespace `sonarqube`, service `sonarqube`, port
+`9000`, browser URL `http://localhost:9000`, and the token. **Test** checks the server is UP and the
+token is valid. SonarCloud (free for public repositories) works with access *URL*
+`https://sonarcloud.io` plus your organization.
+
 ---
 
 ## 6. Part C: your first project, end to end
@@ -589,7 +632,7 @@ switches any environment on or off in **Projects → project → Setup checklist
 
 In a gated environment these actions become a request instead of running:
 promote into it, Sync, roll back, redeploy, run its branch pipeline, merge into its branch, apply or remove its
-public DNS record, and start a public preview URL (C10).
+public DNS record, and start a public preview URL (C10). Promotions also show the release checks (C11).
 
 | Step | Who | What happens |
 |---|---|---|
@@ -661,6 +704,29 @@ can see: each public hostname (state, answers, when and by whom it was set) and 
 Previews open for more than 24 hours are flagged red; **Stop** closes one right there (needs Build and
 Deploy on that environment). **Fix / Manage** jumps to the project's Domains tab. Check this page
 regularly: a forgotten preview keeps an environment open to anyone with the link.
+
+### C11. Security tab and release checks
+
+**Project → Security** (needs B8):
+
+- **Release readiness**: for every gated environment (prod), the checks for promoting the environment
+  before it: the SonarQube **quality gate** and the **vulnerabilities of the image being promoted**
+  (pass / fail / warning / unknown). Approvers see the same checks on the approval request.
+- **Code quality (SonarQube)**: quality gate, ratings A–E (reliability, security, maintainability,
+  security review), bugs, vulnerabilities, hotspots, code smells, coverage, duplications, lines of
+  code, and a link to SonarQube. **Run analysis** (Build and Deploy) clones the app repository's branch
+  and runs `sonar-scanner` as a Kubernetes Job next to SonarQube (so GitLab.com runners never need to
+  reach your laptop); the status and log show live, and the quality gate appears when SonarQube has
+  processed the report (1–3 minutes). The Git and SonarQube tokens are passed in a Secret deleted with
+  the Job.
+- **Image vulnerabilities (Trivy)**: per environment, critical / high / medium / low per workload and
+  image; **View CVEs** lists each CVE with package, installed and fixed version, score and a link. Filter
+  on severity or "only fixable". Environment tiles on the Overview show a red/orange CVE badge.
+- **Settings** (project Admin): SonarQube connector and project key (default: the project name), and
+  two policies: **block promotions into gated environments when the quality gate fails** and **when
+  the promoted image has critical CVEs**. A blocked promotion is refused with the reason, both when
+  requested and when an approved request is about to run. Checks that cannot run (SonarQube down, not
+  scanned yet) never block; they show as *unknown*.
 
 ---
 

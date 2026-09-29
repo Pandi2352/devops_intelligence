@@ -1,0 +1,46 @@
+# Trivy Operator: scans the images of running workloads for known vulnerabilities (CVEs) and stores
+# the results as VulnerabilityReport resources, which DevOps Intelligence reads (Project → Security).
+#   helm repo add aqua https://aquasecurity.github.io/helm-charts/
+#   helm install trivy-operator aqua/trivy-operator -n trivy-system --create-namespace -f trivy-operator-values.yaml
+# Private GitLab images are pulled with the workloads' own imagePullSecrets (gitlab-registry).
+
+# Platform namespaces are not our applications: skip them.
+excludeNamespaces: "kube-system,kube-public,kube-node-lease,trivy-system,monitoring,argocd,ingress-nginx,cloudflared,sonarqube,kubernetes-dashboard"
+
+operator:
+  # Vulnerability scanning only; the other scanners are heavier and not used yet.
+  vulnerabilityScannerEnabled: true
+  configAuditScannerEnabled: false
+  rbacAssessmentScannerEnabled: false
+  infraAssessmentScannerEnabled: false
+  clusterComplianceEnabled: false
+  exposedSecretScannerEnabled: false
+  sbomGenerationEnabled: false
+  # Only the images that currently run (not every old ReplicaSet).
+  vulnerabilityScannerScanOnlyCurrentRevisions: true
+  # Keep a laptop responsive.
+  scanJobsConcurrentLimit: 2
+  # The first scan waits for the vulnerability database; 5 minutes (the default) is too short on a laptop.
+  scanJobTimeout: 15m
+  # One Trivy server downloads the vulnerability database once; scan jobs ask it instead of each downloading ~800 MB.
+  builtInTrivyServer: true
+  # The chart has no setting for the server's liveness probe, which kills it during the first (slow) database
+  # download. After install/upgrade, give it 10 minutes:
+  #   kubectl -n trivy-system patch statefulset trivy-server --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/failureThreshold","value":60}]'
+  # IMPORTANT on minikube with Docker Desktop / WSL2: the chart gives trivy-service sessionAffinity ClientIP,
+  # which needs the xt_recent kernel module WSL2 lacks. kube-proxy then fails EVERY sync and new or changed
+  # Services stop routing cluster-wide. Right after install/upgrade:
+  #   kubectl -n trivy-system patch svc trivy-service --type=merge -p '{"spec":{"sessionAffinity":"None"}}'
+  # Re-scan daily so new CVEs show up for images that did not change.
+  scannerReportTTL: "24h"
+
+trivy:
+  # Report CVEs with and without a fix; the UI marks which ones are fixable.
+  ignoreUnfixed: false
+  severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 1Gi

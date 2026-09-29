@@ -5,6 +5,8 @@ import { Button } from '../common/Button';
 import { ApprovalItem } from '../../api/approvalApi';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
 import { ACTION_LABEL, STATUS_META, durationOf } from './approvalMeta';
+import { ReleaseCheckList } from '../security/SecurityChips';
+import { isReleaseCheckList } from '../security/securityMeta';
 
 interface ApprovalCardProps {
   request: ApprovalItem;
@@ -28,6 +30,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ request: r, busy, on
   const ctx = r.context || {};
   const projectHref = r.projectId ? `/projects/${r.projectId}` : null;
   const hasContext = ctx.runningImage || ctx.gitRevision || ctx.sync || ctx.health || ctx.mergeRequest || ctx.sourceCommit;
+  const releaseChecks = isReleaseCheckList(ctx.releaseChecks) ? ctx.releaseChecks : [];
   const decided = r.reviewedBy && r.status !== 'PENDING' && r.status !== 'CANCELLED';
 
   return (
@@ -80,6 +83,13 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ request: r, busy, on
             </Field>
           )}
           {ctx.sourceCommit && <Field label="Source commit">{String(ctx.sourceCommit).slice(0, 10)}</Field>}
+        </div>
+      )}
+
+      {releaseChecks.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[10px] uppercase tracking-wide text-slate-400">Release checks</div>
+          <ReleaseCheckList checks={releaseChecks} compact />
         </div>
       )}
 

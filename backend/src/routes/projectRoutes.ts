@@ -36,6 +36,15 @@ import {
   startEnvironmentPreview,
   stopEnvironmentPreview,
 } from '../controllers/envDnsController.js';
+import {
+  getAnalysis,
+  getProjectSecurity,
+  getVulnerabilityReport,
+  releaseGuard,
+  runAnalysis,
+  setProjectSecurity,
+  withReleaseGuard,
+} from '../controllers/securityController.js';
 
 const router = Router();
 
@@ -48,7 +57,7 @@ const env = (req: AuthRequest) => String(req.params.env);
 router.get('/:id', authenticate, requireProject(VIEW), getProjectById);
 router.get('/:id/overview', authenticate, requireProject(VIEW), getProjectOverview);
 router.get('/:id/environments', authenticate, requireProject(VIEW), getProjectEnvironments);
-router.post('/:id/environments/promote', authenticate, requireProject(DEPLOY, (req) => String(req.body?.to || '')), approvalGate('env.promote'), promoteEnvironment);
+router.post('/:id/environments/promote', authenticate, requireProject(DEPLOY, (req) => String(req.body?.to || '')), releaseGuard, approvalGate('env.promote'), promoteEnvironment);
 router.get('/:id/setup', authenticate, requireProject(VIEW), getProjectSetup);
 router.post('/:id/environments/add', authenticate, requireProject(ADMIN), addEnvironment);
 router.get('/:id/environments/:env/checks', authenticate, requireProject(VIEW, env), getEnvironmentChecks);
@@ -62,6 +71,13 @@ router.post('/:id/environments/:env/redeploy', authenticate, requireProject(DEPL
 router.put('/:id/environments/:env/approval', authenticate, setEnvironmentApproval);
 
 // Public address: admins choose the hostname; build-and-deploy applies it (approval-gated like a deploy).
+// Security: code quality (SonarQube) and image vulnerabilities (Trivy).
+router.get('/:id/security', authenticate, requireProject(VIEW), getProjectSecurity);
+router.put('/:id/security', authenticate, requireProject(ADMIN), setProjectSecurity);
+router.get('/:id/security/analysis', authenticate, requireProject(VIEW), getAnalysis);
+router.post('/:id/security/analysis', authenticate, requireProject(DEPLOY), runAnalysis);
+router.get('/:id/environments/:env/vulnerabilities/:report', authenticate, requireProject(VIEW, env), getVulnerabilityReport);
+
 router.get('/:id/dns', authenticate, requireProject(VIEW), getProjectDns);
 router.put('/:id/environments/:env/dns', authenticate, requireProject(ADMIN, env), setEnvironmentDns);
 router.post('/:id/environments/:env/dns/apply', authenticate, requireProject(DEPLOY, env), approvalGate('dns.apply'), applyEnvironmentDns);
@@ -70,7 +86,7 @@ router.delete('/:id/environments/:env/dns/record', authenticate, requireProject(
 router.post('/:id/environments/:env/preview', authenticate, requireProject(DEPLOY, env), approvalGate('preview.start'), startEnvironmentPreview);
 router.delete('/:id/environments/:env/preview', authenticate, requireProject(DEPLOY, env), stopEnvironmentPreview);
 
-registerApprovalHandler('env.promote', promoteEnvironment);
+registerApprovalHandler('env.promote', withReleaseGuard(promoteEnvironment));
 registerApprovalHandler('env.rollback', rollbackEnvironment);
 registerApprovalHandler('env.redeploy', redeployEnvironment);
 registerApprovalHandler('dns.apply', applyEnvironmentDns);

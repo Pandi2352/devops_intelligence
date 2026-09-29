@@ -20,6 +20,7 @@ import approvalRoutes from './routes/approvalRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import observabilityRoutes from './routes/observabilityRoutes.js';
 import dnsRoutes from './routes/dnsRoutes.js';
+import securityRoutes from './routes/securityRoutes.js';
 
 dotenv.config();
 
@@ -93,6 +94,7 @@ app.use('/api/argocd', argoRoutes);
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/observability', observabilityRoutes);
 app.use('/api/dns', dnsRoutes);
+app.use('/api/security', securityRoutes);
 
 // Root route
 app.get('/', (_req, res) => {

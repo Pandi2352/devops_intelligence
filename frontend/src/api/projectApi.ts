@@ -180,6 +180,8 @@ export interface EnvOverview {
   publicUrl?: string;
   /** Temporary trycloudflare.com URL while a preview runs. */
   previewUrl?: string;
+  /** CVE counts of the running image (Trivy Operator); null/undefined when not scanned. */
+  vulnerabilities?: { critical: number; high: number; medium: number; low: number; unknown: number } | null;
 }
 
 export interface ProjectOverview extends Project {

@@ -5,6 +5,7 @@ import { ApprovalAction, ApprovalRequest, IApprovalRequest } from '../models/App
 import { AuditEvent, AuditOutcome } from '../models/AuditEvent.js';
 import { IUser, User } from '../models/User.js';
 import { argoRequest } from '../controllers/argoController.js';
+import { releaseChecks } from './securityService.js';
 import { mergeRequestInfo } from '../controllers/gitMergeController.js';
 import { repoPath } from './gitAccess.js';
 import { DEPLOY, envLevel, envNameOf, repoPathOf } from './access.js';
@@ -110,7 +111,13 @@ const envOfBranch = async (connectorId: string, repoId: string, branch: string) 
 export const RESOLVERS: Record<string, { action: ApprovalAction; resolve: Resolver }> = {
   'env.promote': {
     action: 'PROMOTE',
-    resolve: byProjectEnv((req) => String(req.body?.to || ''), (req, env) => `Promote ${req.body?.from} → ${env}`),
+    resolve: async (req) => {
+      const t = await byProjectEnv((r) => String(r.body?.to || ''), (r, env) => `Promote ${r.body?.from} → ${env}`)(req);
+      if (!t) return t;
+      // Approvers see the quality gate and CVEs of what is being promoted.
+      const checks = await releaseChecks(t.project, t.environment, req.body?.from ? String(req.body.from) : undefined).catch(() => null);
+      return checks ? { ...t, context: { ...t.context, releaseChecks: checks.checks } } : t;
+    },
   },
   'env.rollback': {
     action: 'ROLLBACK',

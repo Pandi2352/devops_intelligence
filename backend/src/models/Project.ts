@@ -57,6 +57,18 @@ export interface IArgoAppMapping {
   preview?: IEnvPreview | null;
 }
 
+/** Code quality and image scanning settings. */
+export interface IProjectSecurity {
+  sonarConnectorId?: string;
+  /** Empty = derived from the project name. */
+  sonarProjectKey?: string;
+  /** Refuse promotions into gated environments (prod) while the quality gate fails. */
+  blockOnQualityGate?: boolean;
+  /** Refuse promotions into gated environments while the promoted image has critical CVEs. */
+  blockOnCritical?: boolean;
+  lastAnalysis?: { job: string; namespace: string; clusterName: string; projectKey: string; branch: string; startedAt: Date; startedBy: string } | null;
+}
+
 export interface IProject extends Document {
   name: string;
   description?: string;
@@ -64,6 +76,7 @@ export interface IProject extends Document {
   gitopsPath?: string; // folder holding one overlay per environment, e.g. k8s/overlays
   kubernetesMappings: IK8sMapping[];
   argoApps: IArgoAppMapping[];
+  security?: IProjectSecurity | null;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -132,6 +145,19 @@ const ProjectSchema = new Schema<IProject>(
         serverUrl: { type: String, default: 'https://argocd.kubeorbit.local' },
       },
     ],
+    security: {
+      type: new Schema(
+        {
+          sonarConnectorId: { type: String, default: '' },
+          sonarProjectKey: { type: String, default: '' },
+          blockOnQualityGate: { type: Boolean, default: false },
+          blockOnCritical: { type: Boolean, default: false },
+          lastAnalysis: { type: Schema.Types.Mixed, default: null },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
     active: {
       type: Boolean,
       default: true,

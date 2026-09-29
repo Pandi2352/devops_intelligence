@@ -1,9 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, ChevronRight, GitCommitHorizontal, Globe, Lock, Rocket } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, GitCommitHorizontal, Globe, Lock, Rocket, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { EnvOverview, EnvState } from '../../api/projectApi';
 import { ENV_STATE_META } from '../../utils/project';
 import { formatDateTime, formatRelativeTime, hostFromUrl } from '../../utils/format';
+import { vulnSummary } from '../security/securityMeta';
 
 export const EnvStateChip: React.FC<{ state: EnvState; className?: string }> = ({ state, className = '' }) => {
   const m = ENV_STATE_META[state] || ENV_STATE_META.unknown;
@@ -61,6 +62,22 @@ export interface EnvAction {
   onClick?: () => void;
 }
 
+// Trivy findings for the images this environment runs; links to the Security tab.
+const VulnBadge: React.FC<{ counts: NonNullable<EnvOverview['vulnerabilities']>; className?: string }> = ({ counts, className = '' }) => {
+  const v = vulnSummary(counts);
+  const clean = !counts.critical && !counts.high;
+  return (
+    <Link
+      to="?tab=security"
+      className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-semibold hover:underline ${v.chip} ${className}`}
+      title="Image vulnerabilities found by Trivy. Open the Security tab for details."
+    >
+      {clean ? <ShieldCheck size={10} aria-hidden /> : <ShieldAlert size={10} aria-hidden />}
+      {v.label}
+    </Link>
+  );
+};
+
 // Large card for one environment on the project page.
 export const EnvironmentTile: React.FC<{ env: EnvOverview; previous?: EnvOverview; actions: EnvAction[] }> = ({ env, previous, actions }) => {
   const m = ENV_STATE_META[env.state] || ENV_STATE_META.unknown;
@@ -91,6 +108,7 @@ export const EnvironmentTile: React.FC<{ env: EnvOverview; previous?: EnvOvervie
               <Lock size={10} /> Approval required
             </span>
           )}
+          {env.vulnerabilities && <VulnBadge counts={env.vulnerabilities} className={env.requiresApproval ? 'ml-1' : ''} />}
         </div>
         <EnvStateChip state={env.state} />
       </div>

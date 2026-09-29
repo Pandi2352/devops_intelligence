@@ -8,6 +8,7 @@ import { isValidId } from '../utils/validation.js';
 import { IUser } from '../models/User.js';
 import { envLevel, projectLevel } from '../services/access.js';
 import { requiresApproval } from '../services/approvals.js';
+import { namespaceReports, sumReports } from '../services/trivyService.js';
 
 // One plain-language state per environment, derived from ArgoCD sync + health + operation.
 export type EnvState = 'healthy' | 'deploying' | 'waiting' | 'failing' | 'missing' | 'unknown';
@@ -35,6 +36,8 @@ export interface EnvOverview {
   publicUrl?: string;
   /** Temporary trycloudflare.com URL while a preview runs. */
   previewUrl?: string;
+  /** CVE counts of the running image (Trivy), null when not scanned. */
+  vulnerabilities?: { critical: number; high: number; medium: number; low: number; unknown: number } | null;
 }
 
 const rank = (name: string) => {
@@ -172,7 +175,16 @@ export const getProjectOverview = async (req: AuthRequest, res: Response): Promi
       return;
     }
     const argo = await loadArgoApps();
-    res.json({ argoError: argo.error || undefined, project: summarize(project, argo.apps, req.user) });
+    const summary = summarize(project, argo.apps, req.user);
+    // CVE counts of what runs in each environment (Trivy Operator), when it is installed.
+    const cluster = project.kubernetesMappings?.[0]?.clusterName || 'minikube';
+    await Promise.all(
+      summary.environments.map(async (e: any) => {
+        const reports = await namespaceReports(cluster, e.namespace).catch(() => null);
+        e.vulnerabilities = reports && reports.length ? sumReports(reports) : null;
+      })
+    );
+    res.json({ argoError: argo.error || undefined, project: summary });
   } catch (err) {
     res.status(500).json({ message: describeRequestError(err, 'DevOps Intelligence') });
   }
