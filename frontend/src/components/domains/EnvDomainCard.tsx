@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Check, Copy, ExternalLink, Globe, Link2, Loader2, Pencil, Play, Square, Trash2, Wrench, X } from 'lucide-react';
+import { Check, Copy, ExternalLink, Globe, Link2, Loader2, Pencil, Play, Shuffle, Square, Trash2, Wrench, X } from 'lucide-react';
 import { EnvDns, Reachability } from '../../api/dnsApi';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
 import { ApprovalRequiredBadge, PendingApprovalStrip } from '../environments/ApprovalNotice';
 import { DNS_STATE_META, reachText } from './domainMeta';
 
-export type DomainAction = 'configure' | 'apply' | 'remove' | 'clear' | 'start' | 'stop';
+export type DomainAction = 'configure' | 'apply' | 'remove' | 'clear' | 'start' | 'stop' | 'random' | 'reroll';
 
 const btn =
   'h-7 px-2.5 inline-flex items-center gap-1 rounded-md text-[11px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
@@ -222,6 +222,29 @@ export const EnvDomainCard: React.FC<EnvDomainCardProps> = ({ env, probing, busy
           </button>
         )}
         <span className="flex-1" />
+        {!dns && (
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={!env.canConfigure || Boolean(waiting) || Boolean(busy)}
+            title={configTitle || `A random https://…${env.env} URL on your Cloudflare domain, through the cluster's tunnel${lock}`}
+            onClick={() => onAction('random', env)}
+          >
+            {busy === 'random' ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Shuffle size={12} aria-hidden />}
+            {busy === 'random' ? 'Creating…' : 'Get random URL'}
+          </button>
+        )}
+        {dns?.random && (
+          <button
+            type="button"
+            className={btnSecondary}
+            disabled={!env.canConfigure || Boolean(waiting) || Boolean(busy)}
+            title={configTitle || `Replace ${dns.hostname} with a new random name; the old one stops working${lock}`}
+            onClick={() => onAction('reroll', env)}
+          >
+            {busy === 'reroll' ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Shuffle size={12} aria-hidden />} New random URL
+          </button>
+        )}
         {canFix && (
           <button
             type="button"

@@ -162,6 +162,8 @@ export interface EnvDnsConfig {
   service: string;
   port: number;
   proxied: boolean;
+  /** Created by "Get random URL". */
+  random?: boolean;
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -227,6 +229,9 @@ export const envDnsApi = {
   apply: async (projectId: string, env: string, reason?: string): Promise<DnsActionResult> => (await api.post(`${envPath(projectId, env)}/dns/apply`, { reason: reason || undefined })).data,
   removeRecord: async (projectId: string, env: string, reason?: string): Promise<DnsActionResult> =>
     (await api.delete(`${envPath(projectId, env)}/dns/record`, { data: { reason: reason || undefined } })).data,
+  /** One click: random subdomain of a Cloudflare zone, served through the cluster's tunnel. */
+  quick: async (projectId: string, env: string, opts: { regenerate?: boolean; zoneId?: string; reason?: string } = {}): Promise<DnsActionResult & { hostname?: string; steps?: TunnelStep[] }> =>
+    (await api.post(`${envPath(projectId, env)}/dns/quick`, { regenerate: opts.regenerate || undefined, zoneId: opts.zoneId || undefined, reason: opts.reason || undefined })).data,
   startPreview: async (projectId: string, env: string, reason?: string): Promise<DnsActionResult> =>
     (await api.post(`${envPath(projectId, env)}/preview`, { reason: reason || undefined })).data,
   stopPreview: async (projectId: string, env: string): Promise<DnsActionResult> => (await api.delete(`${envPath(projectId, env)}/preview`)).data,

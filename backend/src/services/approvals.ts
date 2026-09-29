@@ -124,6 +124,13 @@ export const RESOLVERS: Record<string, { action: ApprovalAction; resolve: Resolv
     action: 'DNS_CHANGE',
     resolve: byProjectEnv((req) => String(req.params.env), (_req, env) => `Point the public hostname of ${env} at ${env} (Cloudflare DNS)`),
   },
+  'dns.quick': {
+    action: 'DNS_CHANGE',
+    resolve: byProjectEnv(
+      (req) => String(req.params.env),
+      (req, env) => (req.body?.regenerate ? `Replace the random public URL of ${env} (Cloudflare Tunnel)` : `Give ${env} a random public URL (Cloudflare Tunnel)`)
+    ),
+  },
   'dns.remove': {
     action: 'DNS_CHANGE',
     resolve: byProjectEnv((req) => String(req.params.env), (_req, env) => `Remove the public DNS record of ${env}`),

@@ -61,6 +61,7 @@ const PROBES: (Probe & { expect: string[] })[] = [
   { name: 'stop dev preview', method: 'DELETE', path: `/projects/${PROJECT}/environments/dev/preview`, expect: ['test.admin', 'ops.lead', 'dev.alice', 'dev.bob', 'release.dave', 'lead.erin'] },
   { name: 'public URLs page', path: '/dns/public-urls?probe=0', expect: ['test.admin', 'ops.lead', 'dev.alice', 'dev.bob', 'qa.carol', 'release.dave', 'lead.erin', 'mgr.frank', 'viewer.grace', 'dev.heidi'] },
   { name: 'Cloudflare domains', path: '/dns/domains?probe=0', expect: ['test.admin', 'ops.lead'] },
+  { name: 'random URL for prod', method: 'POST', path: `/projects/${PROJECT}/environments/prod/dns/quick`, body: { reason: 'permission test' }, expect: ['test.admin', 'ops.lead', 'lead.erin'] },
   { name: 'list tunnels', path: '/dns/tunnels?live=0', expect: ['test.admin', 'ops.lead'] },
   { name: 'PromQL explorer', path: '/observability/metrics/query?query=up', expect: ['test.admin', 'ops.lead'] },
   { name: 'view prod ArgoCD app', path: '/argocd/apps/kubeorbit-demo-api-prod', expect: ['test.admin', 'ops.lead', 'release.dave', 'lead.erin', 'mgr.frank', 'viewer.grace'] },

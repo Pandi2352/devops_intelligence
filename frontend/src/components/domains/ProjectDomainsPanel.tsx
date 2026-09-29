@@ -12,13 +12,15 @@ import { DomainAction, EnvDomainCard } from './EnvDomainCard';
 const POLL_MS = 4000;
 const POLL_MAX_MS = 60000;
 
-type ConfirmKind = 'apply' | 'remove' | 'clear' | 'start';
+type ConfirmKind = 'apply' | 'remove' | 'clear' | 'start' | 'random' | 'reroll';
 
 const CONFIRM_TEXT: Record<ConfirmKind, { title: string; label: string; tone: 'danger' | 'primary' }> = {
   apply: { title: 'Apply DNS', label: 'Apply', tone: 'primary' },
   remove: { title: 'Remove the DNS record', label: 'Remove record', tone: 'danger' },
   clear: { title: 'Clear the hostname', label: 'Clear hostname', tone: 'danger' },
   start: { title: 'Start a preview URL', label: 'Start preview', tone: 'primary' },
+  random: { title: 'Get a random URL', label: 'Create URL', tone: 'primary' },
+  reroll: { title: 'New random URL', label: 'Replace URL', tone: 'danger' },
 };
 
 interface ProjectDomainsPanelProps {
@@ -90,6 +92,7 @@ export const ProjectDomainsPanel: React.FC<ProjectDomainsPanelProps> = ({ projec
       else if (kind === 'remove') res = await envDnsApi.removeRecord(projectId, env.env, why);
       else if (kind === 'start') res = await envDnsApi.startPreview(projectId, env.env, why);
       else if (kind === 'stop') res = await envDnsApi.stopPreview(projectId, env.env);
+      else if (kind === 'random' || kind === 'reroll') res = await envDnsApi.quick(projectId, env.env, { regenerate: kind === 'reroll', reason: why });
       else res = await envDnsApi.clear(projectId, env.env);
       if ('approvalRequired' in res && res.approvalRequired) {
         setRequested(res.message || 'Approval requested');
@@ -112,7 +115,7 @@ export const ProjectDomainsPanel: React.FC<ProjectDomainsPanelProps> = ({ projec
     if (action === 'configure') return setEditing(env);
     if (action === 'stop') return void run('stop', env);
     // Remove and clear always ask; apply and preview only ask when a reason for the approvers is useful.
-    if (action === 'remove' || action === 'clear' || env.requiresApproval) {
+    if (action === 'remove' || action === 'clear' || action === 'reroll' || env.requiresApproval) {
       setReason('');
       setConfirmError(null);
       setConfirm({ kind: action, env });
@@ -227,6 +230,17 @@ export const ProjectDomainsPanel: React.FC<ProjectDomainsPanelProps> = ({ projec
                 <p>
                   Forgets the hostname <span className="font-mono">{confirmHost}</span> for {confirm.env.env}. The Cloudflare record is left in place:
                   remove the record first if it should stop working.
+                </p>
+              )}
+              {confirm.kind === 'random' && (
+                <p>
+                  Creates a random hostname like <span className="font-mono">{projectName}-{confirm.env.env}-7k2f.your-domain</span> on your Cloudflare domain, with
+                  HTTPS, served through the cluster&apos;s Cloudflare Tunnel. It stays the same until you replace or remove it.
+                </p>
+              )}
+              {confirm.kind === 'reroll' && (
+                <p>
+                  Replaces <span className="font-mono">{confirmHost}</span> with a new random name. The old URL stops working right away.
                 </p>
               )}
               {confirm.kind === 'start' && (

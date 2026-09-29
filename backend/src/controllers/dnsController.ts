@@ -27,7 +27,7 @@ import {
 import { CloudflareTunnel, ICloudflareTunnel } from '../models/CloudflareTunnel.js';
 import { Cluster } from '../models/Cluster.js';
 import { connectorPods, deployTunnelConnector, removeTunnelConnector } from '../services/cloudflared.js';
-import { cachedZones, forgetZones, HOSTNAME, MANAGED_MARK, syncTunnelIngress, tunnelRoutes } from '../services/dnsService.js';
+import { cachedZones, forgetZones, HOSTNAME, MANAGED_MARK, provisionTunnel, syncTunnelIngress, tunnelRoutes } from '../services/dnsService.js';
 import { envNameOf } from '../services/access.js';
 import { inspectHost } from '../services/domainInspector.js';
 import { audit } from '../services/approvals.js';
@@ -470,31 +470,11 @@ export const createTunnelHandler = async (req: AuthRequest, res: Response): Prom
     return;
   }
   const replicas = Math.min(Math.max(Number(body.replicas) || 1, 1), 3);
-  const steps: { label: string; ok: boolean; detail: string }[] = [];
-  let doc: ICloudflareTunnel;
-  try {
-    const created = await createTunnel(connector, name);
-    steps.push({ label: 'Tunnel created in Cloudflare', ok: true, detail: created.id });
-    const token = await getTunnelToken(connector, created.id);
-    doc = await CloudflareTunnel.create({ name, connectorId: String(connector._id), tunnelId: created.id, clusterName, namespace: 'cloudflared', token, replicas, createdBy: req.user?.email || '' });
-    await putTunnelIngress(connector, created.id, []);
-    steps.push({ label: 'Routes initialised (none yet)', ok: true, detail: '' });
-  } catch (err) {
-    steps.push({ label: 'Create tunnel', ok: false, detail: describeCloudflareError(err) });
-    res.status(502).json({ message: `Could not create the tunnel: ${describeCloudflareError(err)}`, steps });
+  const { doc, steps, error } = await provisionTunnel(connector, clusterName, name, { replicas, deploy: body.deploy !== false, createdBy: req.user?.email || '' });
+  if (!doc) {
+    res.status(502).json({ message: `Could not create the tunnel: ${error}`, steps });
     return;
   }
-  if (body.deploy !== false) {
-    try {
-      await deployTunnelConnector(clusterName, doc.namespace, doc.token, replicas);
-      doc.deployed = true;
-      steps.push({ label: `cloudflared deployed to ${clusterName}/${doc.namespace}`, ok: true, detail: `${replicas} replica(s)` });
-    } catch (err: any) {
-      doc.lastError = `Deploy failed: ${err?.body?.message || err?.message}`;
-      steps.push({ label: 'Deploy cloudflared', ok: false, detail: doc.lastError });
-    }
-  }
-  await doc.save();
   await audit(req.user, { action: 'CONNECTOR', target: `Cloudflare Tunnel · ${name}`, outcome: 'changed', message: `Created tunnel ${name} for ${clusterName}${doc.deployed ? ' and deployed cloudflared' : ''}` });
   res.status(201).json({ message: `Tunnel ${name} created${doc.deployed ? ' and cloudflared is starting' : ''}`, steps, tunnel: await serializeTunnel(doc, false) });
 };

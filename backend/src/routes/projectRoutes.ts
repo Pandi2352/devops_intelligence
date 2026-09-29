@@ -30,6 +30,7 @@ import {
 import {
   applyEnvironmentDns,
   getProjectDns,
+  quickEnvironmentDns,
   removeEnvironmentDnsRecord,
   setEnvironmentDns,
   startEnvironmentPreview,
@@ -64,6 +65,7 @@ router.put('/:id/environments/:env/approval', authenticate, setEnvironmentApprov
 router.get('/:id/dns', authenticate, requireProject(VIEW), getProjectDns);
 router.put('/:id/environments/:env/dns', authenticate, requireProject(ADMIN, env), setEnvironmentDns);
 router.post('/:id/environments/:env/dns/apply', authenticate, requireProject(DEPLOY, env), approvalGate('dns.apply'), applyEnvironmentDns);
+router.post('/:id/environments/:env/dns/quick', authenticate, requireProject(ADMIN, env), approvalGate('dns.quick'), quickEnvironmentDns);
 router.delete('/:id/environments/:env/dns/record', authenticate, requireProject(DEPLOY, env), approvalGate('dns.remove'), removeEnvironmentDnsRecord);
 router.post('/:id/environments/:env/preview', authenticate, requireProject(DEPLOY, env), approvalGate('preview.start'), startEnvironmentPreview);
 router.delete('/:id/environments/:env/preview', authenticate, requireProject(DEPLOY, env), stopEnvironmentPreview);
@@ -72,6 +74,7 @@ registerApprovalHandler('env.promote', promoteEnvironment);
 registerApprovalHandler('env.rollback', rollbackEnvironment);
 registerApprovalHandler('env.redeploy', redeployEnvironment);
 registerApprovalHandler('dns.apply', applyEnvironmentDns);
+registerApprovalHandler('dns.quick', quickEnvironmentDns);
 registerApprovalHandler('dns.remove', removeEnvironmentDnsRecord);
 registerApprovalHandler('preview.start', startEnvironmentPreview);
 router.put('/:id', authenticate, requireProject(ADMIN), updateProject);

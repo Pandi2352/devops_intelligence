@@ -1,13 +1,14 @@
 import { Response } from 'express';
 import { isIP } from 'node:net';
+import { randomBytes } from 'node:crypto';
 import { AuthRequest } from '../middleware/auth.js';
 import { IArgoAppMapping, IProject, Project } from '../models/Project.js';
 import { DnsIntegration } from '../models/DnsIntegration.js';
-import { CloudflareTunnel } from '../models/CloudflareTunnel.js';
+import { CloudflareTunnel, ICloudflareTunnel } from '../models/CloudflareTunnel.js';
 import { ApprovalRequest } from '../models/ApprovalRequest.js';
-import { ADMIN, DEPLOY, envLevel, envNameOf } from '../services/access.js';
+import { ADMIN, DEPLOY, envLevel, envNameOf, isManager } from '../services/access.js';
 import { audit, requiresApproval } from '../services/approvals.js';
-import { createRecord, deleteRecord, describeCloudflareError, listRecords, updateRecord, zoneForHostname } from '../services/cloudflareClient.js';
+import { createRecord, deleteRecord, describeCloudflareError, listRecords, tunnelTarget, updateRecord, zoneForHostname } from '../services/cloudflareClient.js';
 import { environmentService, previewNamespaces, previewState, startPreview, stopPreview } from '../services/cloudflared.js';
 import {
   activeConnector,
@@ -20,6 +21,7 @@ import {
   expectedRecord,
   HOSTNAME,
   MANAGED_MARK,
+  provisionTunnel,
   syncTunnelIngress,
 } from '../services/dnsService.js';
 import { cleanString, isValidId } from '../utils/validation.js';
@@ -431,5 +433,160 @@ export const getPublicUrls = async (req: AuthRequest, res: Response): Promise<vo
       oldPreviews: running.filter((i) => i.preview.startedAt && Date.now() - new Date(i.preview.startedAt).getTime() > 24 * 3600_000).length,
     },
     unreachableClusters,
+  });
+};
+
+// ---------------------------------------------------------------- one click: random subdomain through a tunnel
+
+const randomSuffix = () => randomBytes(3).toString('hex').slice(0, 4);
+// <project>-<env>-<4 chars>, one DNS label (Cloudflare's free certificate covers one level below the zone).
+const randomLabel = (project: string, env: string) => {
+  const base = `${project}-${env}`
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 50)
+    .replace(/-$/, '');
+  return `${base || 'env'}-${randomSuffix()}`;
+};
+
+// POST /projects/:id/environments/:env/dns/quick { zoneId?, connectorId?, regenerate? }
+// Picks a random hostname in a zone, makes sure the cluster has a tunnel (DevOps admins may create one here),
+// creates the proxied CNAME and routes the tunnel to the environment's Service. Nothing is saved if DNS fails.
+export const quickEnvironmentDns = async (req: AuthRequest, res: Response): Promise<void> => {
+  const ctx = await loadEnv(req, res);
+  if (!ctx) return;
+  const { project, env, app } = ctx;
+  const body = req.body || {};
+  const previous = app.dns;
+  if (previous?.hostname && !body.regenerate) {
+    res.status(409).json({ message: `${env} already has ${previous.hostname}. Use "New random URL" to replace it.` });
+    return;
+  }
+  if (previous?.hostname && !previous.random) {
+    res.status(409).json({ message: `${previous.hostname} was set by hand. Clear it first if you want a random URL instead.` });
+    return;
+  }
+
+  const connector = await activeConnector(body.connectorId ? String(body.connectorId) : previous?.connectorId || undefined);
+  if (!connector) {
+    res.status(400).json({ message: 'No active DNS connector. A DevOps admin adds Cloudflare in Connectors → DNS.' });
+    return;
+  }
+  // Fail early with the missing permission instead of half-doing it.
+  const caps = connector.capabilities;
+  if (caps && !caps.dnsRead) {
+    res.status(400).json({ message: `The Cloudflare token of ${connector.name} cannot manage DNS records. Add Zone → DNS → Edit to the token, then press Test on the connector.` });
+    return;
+  }
+  if (!connector.accountId) {
+    res.status(400).json({ message: `${connector.name} has no Account ID, which tunnels need. Add it on the connector.` });
+    return;
+  }
+
+  let zones;
+  try {
+    zones = (await cachedZones(connector)).filter((z) => z.status === 'active' && !z.paused);
+  } catch (err) {
+    res.status(502).json({ message: describeCloudflareError(err) });
+    return;
+  }
+  const zone = body.zoneId ? zones.find((z) => z.id === String(body.zoneId)) : zones.find((z) => z.id === previous?.zoneId) || zones[0];
+  if (!zone) {
+    res.status(400).json({ message: `${connector.name} has no active domain to create a URL in.` });
+    return;
+  }
+
+  // The cluster's tunnel; DevOps admins get one created (and cloudflared deployed) on the fly.
+  const cluster = clusterOf(project);
+  const steps: { label: string; ok: boolean; detail: string }[] = [];
+  let tunnel: ICloudflareTunnel | null =
+    (previous?.tunnelId ? await CloudflareTunnel.findOne({ tunnelId: previous.tunnelId }) : null) ||
+    (await CloudflareTunnel.findOne({ connectorId: String(connector._id), clusterName: cluster }));
+  if (!tunnel) {
+    if (!isManager(req.user)) {
+      res.status(400).json({ message: `Cluster ${cluster} has no Cloudflare Tunnel yet. A DevOps admin creates one in Connectors → DNS → Tunnels (or presses Get random URL once).` });
+      return;
+    }
+    let name = `di-${cluster}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 55);
+    if (await CloudflareTunnel.exists({ name })) name = `${name}-${randomSuffix()}`;
+    const made = await provisionTunnel(connector, cluster, name, { deploy: body.deploy !== false, createdBy: req.user?.email || '' });
+    steps.push(...made.steps);
+    if (!made.doc) {
+      res.status(502).json({ message: `Could not create a tunnel: ${made.error}. The token needs Account → Cloudflare Tunnel → Edit.`, steps });
+      return;
+    }
+    tunnel = made.doc;
+    await audit(req.user, { action: 'CONNECTOR', target: `Cloudflare Tunnel · ${name}`, outcome: 'changed', message: `Created tunnel ${name} for ${cluster} (Get random URL)` });
+  }
+
+  const svc = await environmentService(cluster, app.targetNamespace, previous?.service, previous?.port).catch(() => null);
+  if (!svc || !tunnel) {
+    res.status(400).json({ message: `No Service in ${app.targetNamespace} to route to. Deploy ${env} first.`, steps });
+    return;
+  }
+  const t: ICloudflareTunnel = tunnel;
+
+  // A fresh name that nobody uses (in DevOps Intelligence or in the zone).
+  let hostname = '';
+  try {
+    for (let i = 0; i < 5 && !hostname; i++) {
+      const candidate = `${randomLabel(project.name, env)}.${zone.name}`;
+      const taken = (await Project.exists({ 'argoApps.dns.hostname': candidate })) || (await listRecords(connector, zone.id, { name: candidate })).length > 0;
+      if (!taken) hostname = candidate;
+    }
+    if (!hostname) throw new Error('Could not find a free random name; try again');
+    await createRecord(connector, zone.id, { type: 'CNAME', name: hostname, content: tunnelTarget(t.tunnelId), proxied: true, ttl: 1, comment: comment(project, env) });
+    steps.push({ label: `DNS record ${hostname}`, ok: true, detail: `CNAME → ${tunnelTarget(t.tunnelId)} (proxied)` });
+  } catch (err) {
+    const status = (err as any)?.response?.status;
+    const message = status === 403 || status === 401 ? `Cloudflare refused to create the DNS record: the token needs Zone → DNS → Edit on ${zone.name}.` : describeCloudflareError(err);
+    res.status(502).json({ message, steps });
+    return;
+  }
+
+  app.dns = {
+    hostname,
+    connectorId: String(connector._id),
+    zoneId: zone.id,
+    zoneName: zone.name,
+    mode: 'tunnel',
+    target: '',
+    tunnelId: t.tunnelId,
+    service: previous?.service || '',
+    port: previous?.port || 0,
+    proxied: true,
+    random: true,
+    updatedAt: new Date(),
+    updatedBy: req.user?.email || '',
+  };
+  project.markModified('argoApps');
+  await project.save();
+
+  try {
+    const rules = await syncTunnelIngress(t);
+    steps.push({ label: 'Tunnel route', ok: true, detail: `${hostname} → ${svc.url} (${rules.length} route(s) on ${t.name})` });
+  } catch (err) {
+    steps.push({ label: 'Tunnel route', ok: false, detail: describeCloudflareError(err) });
+  }
+
+  // The old random name goes away (its record was ours).
+  if (previous?.hostname && previous.random && previous.zoneId) {
+    try {
+      const old = (await listRecords(connector, previous.zoneId, { name: previous.hostname })).filter((r) => ADDRESS_TYPES.includes(r.type));
+      for (const r of old) await deleteRecord(connector, previous.zoneId, r.id);
+      steps.push({ label: `Old URL ${previous.hostname} removed`, ok: true, detail: '' });
+    } catch (err) {
+      steps.push({ label: `Old URL ${previous.hostname}`, ok: false, detail: `Remove it by hand: ${describeCloudflareError(err)}` });
+    }
+  }
+
+  const url = `https://${hostname}`;
+  res.json({
+    message: `${env} is at ${url}${t.status === 'healthy' ? '' : '. The tunnel is still connecting; the URL works as soon as cloudflared is up (usually under a minute)'}.`,
+    url,
+    hostname,
+    steps,
   });
 };

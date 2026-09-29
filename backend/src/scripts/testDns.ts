@@ -152,6 +152,7 @@ const main = async () => {
   const devHost = `kubeorbit-demo-dev.${ZONE.name}`;
   let connectorId = '';
   let tunnelDocId = '';
+  let quickTunnelDocId = '';
 
   try {
     // 1. connector
@@ -264,6 +265,29 @@ const main = async () => {
     check('unused tunnel deleted (Cloudflare too)', gone.status === 200 && !tunnels.has(tunnelId), gone.data?.message);
     tunnelDocId = '';
 
+    // 8. one click: random URL through a tunnel
+    const noTunnel = await call(erin, 'POST', `/projects/${PROJECT}/environments/dev/dns/quick`, { connectorId });
+    check('random URL without a tunnel: project admin is told to ask DevOps', noTunnel.status === 400 && /Tunnel/.test(noTunnel.data?.message || ''), noTunnel.data?.message);
+    check('alice (deploy only) cannot get a random URL', (await call(alice, 'POST', `/projects/${PROJECT}/environments/dev/dns/quick`, { connectorId })).status === 403);
+    const quick = await call(admin, 'POST', `/projects/${PROJECT}/environments/dev/dns/quick`, { connectorId, deploy: false });
+    const quickHost = String(quick.data?.hostname || '');
+    check('admin gets a random URL (tunnel created on the fly)', quick.status === 200 && new RegExp(`^kubeorbit-demo-dev-[a-z0-9]{4}\\.${ZONE.name.replace('.', '\\.')}$`).test(quickHost), `${quick.status} ${quick.data?.message}`);
+    const quickTunnel = [...tunnels.values()].find((t) => t.name.startsWith('di-minikube'));
+    quickTunnelDocId = (await call(admin, 'GET', '/dns/tunnels?live=0')).data?.tunnels?.find((t: any) => t.tunnelId === quickTunnel?.id)?._id || '';
+    const qRec = addressRecords(quickHost)[0];
+    check('random URL: proxied CNAME to the tunnel', qRec?.type === 'CNAME' && qRec?.content === `${quickTunnel?.id}.cfargotunnel.com` && qRec?.proxied === true);
+    check('random URL: tunnel routes it to the dev Service', (quickTunnel?.config?.ingress || []).some((r: any) => r.hostname === quickHost));
+    check('asking again without "new" is refused', (await call(erin, 'POST', `/projects/${PROJECT}/environments/dev/dns/quick`, { connectorId })).status === 409);
+    const reroll = await call(erin, 'POST', `/projects/${PROJECT}/environments/dev/dns/quick`, { regenerate: true });
+    const newHost = String(reroll.data?.hostname || '');
+    check('project admin replaces it (tunnel exists now)', reroll.status === 200 && newHost !== quickHost && addressRecords(newHost).length === 1, reroll.data?.message);
+    check('old random record removed, route moved', addressRecords(quickHost).length === 0 && (quickTunnel?.config?.ingress || []).some((r: any) => r.hostname === newHost) && !(quickTunnel?.config?.ingress || []).some((r: any) => r.hostname === quickHost));
+    await call(alice, 'DELETE', `/projects/${PROJECT}/environments/dev/dns/record`, {});
+    await call(erin, 'PUT', `/projects/${PROJECT}/environments/dev/dns`, { clear: true });
+    const qGone = await call(admin, 'DELETE', `/dns/tunnels/${quickTunnelDocId}`);
+    check('random URL cleaned up', qGone.status === 200 && addressRecords(newHost).length === 0, qGone.data?.message);
+    quickTunnelDocId = '';
+
     const audit = await call(admin, 'GET', '/approvals/audit?limit=100');
     const events = audit.data?.events || audit.data?.items || [];
     check('audit has DNS changes', events.some((e: any) => e.action === 'DNS_CHANGE' && e.environment === 'dev'));
@@ -272,6 +296,7 @@ const main = async () => {
     await call(erin, 'PUT', `/projects/${PROJECT}/environments/dev/dns`, { clear: true }).catch(() => undefined);
     await call(erin, 'PUT', `/projects/${PROJECT}/environments/dev/approval`, { requiresApproval: null }).catch(() => undefined);
     if (tunnelDocId) await call(admin, 'DELETE', `/dns/tunnels/${tunnelDocId}?force=true`).catch(() => undefined);
+    if (quickTunnelDocId) await call(admin, 'DELETE', `/dns/tunnels/${quickTunnelDocId}?force=true`).catch(() => undefined);
     if (connectorId) {
       const removed = await call(admin, 'DELETE', `/dns/connectors/${connectorId}?force=true`);
       check('test connector removed', removed.status === 200, removed.data?.message);

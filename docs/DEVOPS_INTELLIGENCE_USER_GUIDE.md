@@ -614,6 +614,15 @@ environment, so **stop it when done**: the link dies immediately. A new start gi
 Build and Deploy on the environment; on gated environments (prod) starting one is an approval request.
 Stopping is never gated.
 
+**Get random URL (one click, needs a zone, B6).** Gives the environment a stable random hostname on
+your domain, e.g. `https://kubeorbit-demo-dev-7k2f.example.com`, served through the cluster's Cloudflare
+Tunnel (HTTPS included, no public IP needed). DevOps Intelligence picks a free name, creates the
+proxied CNAME, and routes the tunnel to the environment's Service. If the cluster has no tunnel yet, a
+DevOps admin's click creates one and deploys cloudflared; project admins need that tunnel to exist.
+**New random URL** swaps the name (the old record is deleted). Needs project Admin; on prod it is an
+approval request. The token needs `Zone → DNS → Edit` and `Account → Cloudflare Tunnel → Edit`; without
+them nothing is changed and the card says which permission is missing.
+
 **Public hostname (needs a zone, B6).**
 
 1. A project **Admin** presses **Set hostname**: zone + subdomain (suggested `<project>-<env>`, prod gets

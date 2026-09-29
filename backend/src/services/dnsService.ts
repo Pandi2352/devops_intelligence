@@ -4,8 +4,8 @@ import { DnsIntegration, IDnsIntegration } from '../models/DnsIntegration.js';
 import { CloudflareTunnel, ICloudflareTunnel } from '../models/CloudflareTunnel.js';
 import { IArgoAppMapping, IEnvDns, IProject, Project } from '../models/Project.js';
 import { envNameOf } from './access.js';
-import { CloudflareRecord, CloudflareZone, listZones, putTunnelIngress, tunnelTarget, TunnelIngressRule } from './cloudflareClient.js';
-import { environmentService, ingressAddress } from './cloudflared.js';
+import { CloudflareRecord, CloudflareZone, createTunnel, describeCloudflareError, getTunnelToken, listZones, putTunnelIngress, tunnelTarget, TunnelIngressRule } from './cloudflareClient.js';
+import { deployTunnelConnector, environmentService, ingressAddress } from './cloudflared.js';
 
 export const MANAGED_MARK = 'DevOps Intelligence';
 export const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
@@ -115,4 +115,44 @@ export const syncTunnelIngress = async (tunnel: ICloudflareTunnel) => {
   }
   await putTunnelIngress(connector, tunnel.tunnelId, rules);
   return rules;
+};
+
+// ---------------------------------------------------------------- tunnels
+
+export type ProvisionStep = { label: string; ok: boolean; detail: string };
+
+// Creates a remotely-managed tunnel in Cloudflare, stores it, and (optionally) runs cloudflared in the cluster.
+export const provisionTunnel = async (
+  connector: IDnsIntegration,
+  clusterName: string,
+  name: string,
+  opts: { replicas?: number; deploy?: boolean; createdBy?: string } = {}
+): Promise<{ doc: ICloudflareTunnel | null; steps: ProvisionStep[]; error: string }> => {
+  const replicas = Math.min(Math.max(opts.replicas || 1, 1), 3);
+  const steps: ProvisionStep[] = [];
+  let doc: ICloudflareTunnel;
+  try {
+    const created = await createTunnel(connector, name);
+    steps.push({ label: 'Tunnel created in Cloudflare', ok: true, detail: created.id });
+    const token = await getTunnelToken(connector, created.id);
+    doc = await CloudflareTunnel.create({ name, connectorId: String(connector._id), tunnelId: created.id, clusterName, namespace: 'cloudflared', token, replicas, createdBy: opts.createdBy || '' });
+    await putTunnelIngress(connector, created.id, []);
+    steps.push({ label: 'Routes initialised (none yet)', ok: true, detail: '' });
+  } catch (err) {
+    const error = describeCloudflareError(err);
+    steps.push({ label: 'Create tunnel', ok: false, detail: error });
+    return { doc: null, steps, error };
+  }
+  if (opts.deploy !== false) {
+    try {
+      await deployTunnelConnector(clusterName, doc.namespace, doc.token, replicas);
+      doc.deployed = true;
+      steps.push({ label: `cloudflared deployed to ${clusterName}/${doc.namespace}`, ok: true, detail: `${replicas} replica(s)` });
+    } catch (err: any) {
+      doc.lastError = `Deploy failed: ${err?.body?.message || err?.message}`;
+      steps.push({ label: 'Deploy cloudflared', ok: false, detail: doc.lastError });
+    }
+  }
+  await doc.save();
+  return { doc, steps, error: '' };
 };
