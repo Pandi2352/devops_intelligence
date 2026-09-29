@@ -8,6 +8,8 @@ import {
   deleteZoneRecord,
   listTunnels,
   listZoneRecords,
+  getZoneOverview,
+  listDomains,
   redeployTunnel,
   updateZoneRecord,
   deleteDnsConnector,
@@ -36,6 +38,8 @@ router.put('/connectors/:id/default', authenticate, canManage, setDefaultDnsConn
 router.put('/connectors/:id', authenticate, canManage, updateDnsConnector);
 router.delete('/connectors/:id', authenticate, canManage, deleteDnsConnector);
 
+router.get('/domains', authenticate, canManage, listDomains);
+router.get('/connectors/:id/zones/:zoneId/overview', authenticate, canManage, getZoneOverview);
 router.get('/connectors/:id/zones/:zoneId/records', authenticate, canManage, listZoneRecords);
 router.post('/connectors/:id/zones/:zoneId/records', authenticate, canManage, createZoneRecord);
 router.put('/connectors/:id/zones/:zoneId/records/:recordId', authenticate, canManage, updateZoneRecord);

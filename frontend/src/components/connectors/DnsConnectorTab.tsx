@@ -15,7 +15,7 @@ import { dnsApi, DnsConnector, dnsStatus } from '../../api/dnsApi';
 import { formatDateTime } from '../../utils/format';
 
 
-const STATUS_OPTIONS = ['Connected', 'Error', 'Unknown', 'Disabled'].map((s) => ({ value: s, label: s }));
+const STATUS_OPTIONS = ['Connected', 'Limited', 'Error', 'Unknown', 'Disabled'].map((s) => ({ value: s, label: s }));
 
 const SORT_OPTIONS: SortOption<DnsConnector>[] = [
   { value: 'name', label: 'Name A–Z', compare: (a, b) => a.name.localeCompare(b.name) },
@@ -86,6 +86,28 @@ export const DnsConnectorTab: React.FC<ConnectorTabProps<DnsConnector>> = ({ col
           {d.tokenExpiresOn && (
             <div className={`text-[11px] ${expiresSoon(d) ? 'text-amber-700 font-semibold' : 'text-slate-500'}`} title={formatDateTime(d.tokenExpiresOn)}>
               Expires {d.tokenExpiresOn.slice(0, 10)}
+            </div>
+          )}
+          {d.capabilities && (
+            <div className="flex flex-wrap gap-1 pt-0.5" aria-label="What the token can read">
+              {(
+                [
+                  ['Zones', d.capabilities.zoneRead],
+                  ['DNS', d.capabilities.dnsRead],
+                  ['Settings', d.capabilities.settingsRead],
+                  ['Tunnels', d.capabilities.tunnelRead],
+                ] as [string, boolean | null][]
+              )
+                .filter(([, v]) => v !== null)
+                .map(([label, v]) => (
+                  <span
+                    key={label}
+                    className={`px-1 rounded border text-[10px] font-semibold ${v ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700 line-through'}`}
+                    title={v ? `The token can read ${label.toLowerCase()}` : `The token cannot read ${label.toLowerCase()}`}
+                  >
+                    {label}
+                  </span>
+                ))}
             </div>
           )}
         </div>

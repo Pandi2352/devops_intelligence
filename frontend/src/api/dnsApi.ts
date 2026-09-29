@@ -11,15 +11,24 @@ export interface DnsConnector {
   tokenHint: string;
   isDefault: boolean;
   isActive: boolean;
-  status: 'Connected' | 'Error' | 'Unknown';
+  status: 'Connected' | 'Limited' | 'Error' | 'Unknown';
   lastError: string;
   lastTestedAt?: string;
   tokenStatus: string;
   tokenExpiresOn?: string;
   zoneCount: number;
   dnsReadable: boolean;
+  /** What the token may read (checked by Test; nothing is changed). */
+  capabilities: TokenCapabilities | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface TokenCapabilities {
+  zoneRead: boolean;
+  dnsRead: boolean;
+  settingsRead: boolean;
+  tunnelRead: boolean | null; // null = no Account ID to check with
 }
 
 export interface DnsConnectorInput {
@@ -61,6 +70,8 @@ export const dnsApi = {
   test: async (data: Partial<DnsConnectorInput> & { id?: string }): Promise<ConnectionTestResult> => (await api.post('/dns/connectors/test', data)).data,
   testSaved: async (id: string): Promise<ConnectionTestResult & { connector: DnsConnector }> => (await api.post(`/dns/connectors/${id}/test`)).data,
   zones: async (id: string): Promise<DnsZone[]> => (await api.get(`/dns/connectors/${id}/zones`)).data.zones,
+  zoneOverview: async (id: string, zoneId: string): Promise<ZoneOverview> => (await api.get(`/dns/connectors/${id}/zones/${zoneId}/overview`)).data,
+  domains: async (probe = true): Promise<DomainsList> => (await api.get('/dns/domains', { params: probe ? {} : { probe: 0 } })).data,
 
   // Zone records (DevOps admins).
   records: async (id: string, zoneId: string): Promise<{ zone: DnsZone; editableTypes: DnsRecordType[]; records: DnsRecord[] }> =>
@@ -240,3 +251,45 @@ export interface PublicUrls {
 export const publicUrlsApi = {
   list: async (probe = true): Promise<PublicUrls> => (await api.get('/dns/public-urls', { params: probe ? {} : { probe: 0 } })).data,
 };
+
+// ---------------------------------------------------------------- what can be seen of a domain
+
+/** What the internet sees for a hostname (needs no Cloudflare permission). */
+export interface HostInspection {
+  hostname: string;
+  dns: { A: string[]; AAAA: string[]; CNAME: string[]; error: string };
+  https: { ok: boolean; status: number; ms: number; server: string; location: string; viaCloudflare: boolean; poweredBy: string; error: string };
+  tls: { ok: boolean; valid: boolean; issuer: string; subject: string; validTo: string; daysLeft: number | null; altNames: string[]; error: string };
+}
+
+export interface ZoneUser {
+  project: string;
+  projectId: string;
+  environment: string;
+  hostname: string;
+}
+
+export interface ZoneOverview {
+  zone: DnsZone & {
+    type?: string;
+    developmentMode?: number;
+    originalNameServers?: string[];
+    originalRegistrar?: string;
+    originalDnsHost?: string;
+    createdOn?: string;
+    activatedOn?: string;
+  };
+  capabilities: TokenCapabilities | null;
+  records: DnsRecord[] | null;
+  recordsError: string;
+  settings: { id: string; value: string; editable: boolean }[] | null;
+  settingsError: string;
+  public: HostInspection[]; // apex and www
+  usedBy: ZoneUser[];
+  checkedAt: string;
+}
+
+export interface DomainsList {
+  domains: { connectorId: string; connectorName: string; zone: DnsZone; apex: HostInspection | null; www: HostInspection | null; usedBy: ZoneUser[] }[];
+  errors: string[];
+}

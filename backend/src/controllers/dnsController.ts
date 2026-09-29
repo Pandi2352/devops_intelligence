@@ -14,6 +14,8 @@ import {
   DnsRecordType,
   EDITABLE_TYPES,
   getTunnel,
+  getZone,
+  getZoneSettings,
   getTunnelToken,
   listRecords,
   listZones,
@@ -27,6 +29,7 @@ import { Cluster } from '../models/Cluster.js';
 import { connectorPods, deployTunnelConnector, removeTunnelConnector } from '../services/cloudflared.js';
 import { cachedZones, forgetZones, HOSTNAME, MANAGED_MARK, syncTunnelIngress, tunnelRoutes } from '../services/dnsService.js';
 import { envNameOf } from '../services/access.js';
+import { inspectHost } from '../services/domainInspector.js';
 import { audit } from '../services/approvals.js';
 import { maskSecret } from '../utils/secrets.js';
 import { cleanString, isValidId, nameMatch } from '../utils/validation.js';
@@ -53,6 +56,7 @@ export const serializeDns = (c: IDnsIntegration) => ({
   tokenExpiresOn: c.tokenExpiresOn,
   zoneCount: c.zoneCount,
   dnsReadable: c.dnsReadable,
+  capabilities: c.capabilities || null,
   createdAt: c.createdAt,
   updatedAt: c.updatedAt,
 });
@@ -85,13 +89,15 @@ const applyProbe = async (doc: IDnsIntegration) => {
     doc.tokenExpiresOn = r.tokenExpiresOn ? new Date(r.tokenExpiresOn) : undefined;
     doc.zoneCount = r.zoneCount;
     doc.dnsReadable = r.dnsReadable;
-    doc.status = r.dnsReadable ? 'Connected' : 'Error';
+    doc.capabilities = r.capabilities;
+    doc.status = r.dnsReadable ? 'Connected' : 'Limited';
     doc.lastError = r.dnsReadable ? '' : r.message;
-    return { ok: r.dnsReadable, message: r.message };
+    return { ok: r.dnsReadable, message: r.message, capabilities: r.capabilities };
   } catch (err: any) {
     doc.status = 'Error';
     doc.dnsReadable = false;
     doc.zoneCount = 0;
+    doc.capabilities = null;
     // The token check may have passed before a later step failed.
     if (err?.tokenStatus) doc.tokenStatus = err.tokenStatus;
     if (err?.tokenExpiresOn) doc.tokenExpiresOn = new Date(err.tokenExpiresOn);
@@ -535,4 +541,78 @@ export const deleteTunnelHandler = async (req: AuthRequest, res: Response): Prom
   res.json({
     message: `Tunnel ${t.name} deleted${notes.length ? `. ${notes.join('. ')}` : ''}${routes.length ? `. ${routes.length} hostname(s) no longer route anywhere: point them elsewhere.` : ''}`,
   });
+};
+
+// ---------------------------------------------------------------- what can be seen of a domain
+
+// Each Cloudflare section either has data or says which permission would show it.
+const section = async <T>(p: Promise<T>, permission: string) => {
+  try {
+    return { data: await p, error: '' };
+  } catch (err: any) {
+    const status = err?.response?.status;
+    return { data: null, error: status === 403 || status === 401 ? `The token needs ${permission}` : describeCloudflareError(err) };
+  }
+};
+
+// Environments (any project) whose hostname is in this zone.
+const zoneUsers = async (zoneId: string) => {
+  const out: { project: string; projectId: string; environment: string; hostname: string }[] = [];
+  for (const p of await Project.find({ 'argoApps.dns.zoneId': zoneId })) {
+    for (const a of p.argoApps || []) if (a.dns?.zoneId === zoneId) out.push({ project: p.name, projectId: String(p._id), environment: envNameOf(a), hostname: a.dns.hostname });
+  }
+  return out;
+};
+
+// GET /dns/connectors/:id/zones/:zoneId/overview
+export const getZoneOverview = async (req: AuthRequest, res: Response): Promise<void> => {
+  const ctx = await loadZone(req, res);
+  if (!ctx) return;
+  const { doc, zone } = ctx;
+  const [details, records, settings, apex, www, usedBy] = await Promise.all([
+    section(getZone(doc, zone.id), 'Zone → Zone → Read'),
+    section(listRecords(doc, zone.id), 'Zone → DNS → Read'),
+    section(getZoneSettings(doc, zone.id), 'Zone → Zone Settings → Read'),
+    inspectHost(zone.name),
+    inspectHost(`www.${zone.name}`),
+    zoneUsers(zone.id),
+  ]);
+  res.json({
+    zone: details.data || zone,
+    capabilities: doc.capabilities || null,
+    records: records.data,
+    recordsError: records.error,
+    settings: settings.data,
+    settingsError: settings.error,
+    public: [apex, www],
+    usedBy,
+    checkedAt: new Date().toISOString(),
+  });
+};
+
+// GET /dns/domains: every zone of every active connector with a quick public check (Public URLs page).
+export const listDomains = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connectors = await DnsIntegration.find({ isActive: true }).sort({ isDefault: -1, name: 1 });
+  const probe = req.query.probe !== '0';
+  const domains: any[] = [];
+  const errors: string[] = [];
+  await Promise.all(
+    connectors.map(async (c) => {
+      let zones: Awaited<ReturnType<typeof cachedZones>> = [];
+      try {
+        zones = await cachedZones(c);
+      } catch (err) {
+        errors.push(`${c.name}: ${describeCloudflareError(err)}`);
+        return;
+      }
+      await Promise.all(
+        zones.map(async (z) => {
+          const [apex, www, usedBy] = await Promise.all([probe ? inspectHost(z.name) : null, probe ? inspectHost(`www.${z.name}`) : null, zoneUsers(z.id)]);
+          domains.push({ connectorId: String(c._id), connectorName: c.name, zone: z, apex, www, usedBy });
+        })
+      );
+    })
+  );
+  domains.sort((a, b) => a.zone.name.localeCompare(b.zone.name));
+  res.json({ domains, errors });
 };

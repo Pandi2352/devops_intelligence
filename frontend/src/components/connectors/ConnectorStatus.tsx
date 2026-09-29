@@ -11,6 +11,7 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
   Offline: 'offline',
   Disconnected: 'offline',
   Degraded: 'degraded',
+  Limited: 'degraded',
   Connecting: 'progressing',
   Unknown: 'default',
   Disabled: 'default',

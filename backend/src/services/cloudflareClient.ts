@@ -50,6 +50,13 @@ export interface RecordInput {
   comment?: string;
 }
 
+export interface TokenCapabilities {
+  zoneRead: boolean;
+  dnsRead: boolean;
+  settingsRead: boolean;
+  tunnelRead: boolean | null; // null = no Account ID to check with
+}
+
 export interface CloudflareProbe {
   message: string;
   tokenStatus: string;
@@ -57,6 +64,7 @@ export interface CloudflareProbe {
   zoneCount: number;
   dnsReadable: boolean;
   zones: string[];
+  capabilities: TokenCapabilities;
 }
 
 export interface CloudflareTunnel {
@@ -138,6 +146,39 @@ export const zoneForHostname = (zones: CloudflareZone[], hostname: string) =>
   zones
     .filter((z) => hostname === z.name || hostname.endsWith(`.${z.name}`))
     .sort((a, b) => b.name.length - a.name.length)[0];
+
+export interface ZoneDetails extends CloudflareZone {
+  type: string;
+  developmentMode: number;
+  originalNameServers: string[];
+  originalRegistrar: string;
+  originalDnsHost: string;
+  createdOn?: string;
+  activatedOn?: string;
+}
+
+export const getZone = async (c: CloudflareCredentials, zoneId: string): Promise<ZoneDetails> => {
+  const z = (await cfGet<any>(c, `/zones/${zoneId}`)).result;
+  return {
+    ...toZone(z),
+    type: z.type || '',
+    developmentMode: Number(z.development_mode || 0),
+    originalNameServers: z.original_name_servers || [],
+    originalRegistrar: z.original_registrar || '',
+    originalDnsHost: z.original_dnshost || '',
+    createdOn: z.created_on,
+    activatedOn: z.activated_on,
+  };
+};
+
+// The zone settings people usually care about (needs Zone → Zone Settings → Read).
+const SETTING_IDS = ['ssl', 'always_use_https', 'min_tls_version', 'tls_1_3', 'automatic_https_rewrites', 'http3', 'brotli', 'security_level', 'cache_level', 'browser_cache_ttl', 'development_mode', 'ipv6', 'websockets'];
+export const getZoneSettings = async (c: CloudflareCredentials, zoneId: string) => {
+  const all = (await cfGet<any[]>(c, `/zones/${zoneId}/settings`)).result || [];
+  return all.filter((x) => SETTING_IDS.includes(x.id)).map((x) => ({ id: String(x.id), value: typeof x.value === 'object' ? JSON.stringify(x.value) : String(x.value), editable: Boolean(x.editable) }));
+};
+
+const allowed = (p: Promise<unknown>) => p.then(() => true).catch(() => false);
 
 // ---------------------------------------------------------------- records
 
@@ -266,15 +307,17 @@ export const probeCloudflare = async (c: CloudflareCredentials): Promise<Cloudfl
     );
   }
 
-  let dnsReadable = true;
-  try {
-    await countRecords(c, zones[0].id);
-  } catch {
-    dnsReadable = false;
-  }
+  // What else the token may do (read-only calls; nothing is changed).
+  const [dnsReadable, settingsRead, tunnelRead] = await Promise.all([
+    allowed(countRecords(c, zones[0].id)),
+    allowed(cfGet(c, `/zones/${zones[0].id}/settings/ssl`)),
+    c.accountId ? allowed(cfGet(c, `/accounts/${c.accountId}/cfd_tunnel`, { per_page: 1 })) : Promise.resolve(null),
+  ]);
+  const capabilities = { zoneRead: true, dnsRead: dnsReadable, settingsRead, tunnelRead };
   const expires = token?.expires_on ? ` · expires ${String(token.expires_on).slice(0, 10)}` : '';
+  const names = `${zones.slice(0, 3).map((z) => z.name).join(', ')}${zones.length > 3 ? '…' : ''}`;
   const message = dnsReadable
-    ? `Token active · ${zones.length} zone${zones.length === 1 ? '' : 's'} (${zones.slice(0, 3).map((z) => z.name).join(', ')}${zones.length > 3 ? '…' : ''}) · DNS records readable${expires}`
-    : `Token active and sees ${zones.length} zone(s), but cannot read DNS records. Add Zone → DNS → Read (or Edit).`;
-  return { message, ...known, zoneCount: zones.length, dnsReadable, zones: zones.map((z) => z.name) };
+    ? `Token active · ${zones.length} zone${zones.length === 1 ? '' : 's'} (${names}) · DNS records readable${expires}`
+    : `Token active · sees ${names}, but cannot read DNS records: add Zone → DNS → Read (or Edit) to the token.`;
+  return { message, ...known, zoneCount: zones.length, dnsReadable, zones: zones.map((z) => z.name), capabilities };
 };

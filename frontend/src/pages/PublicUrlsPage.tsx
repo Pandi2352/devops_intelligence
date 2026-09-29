@@ -11,6 +11,8 @@ import { getApiErrorMessage } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { DNS_STATE_META, reachText } from '../components/domains/domainMeta';
 import { formatDateTime, formatRelativeTime } from '../utils/format';
+import { useAuth } from '../context/AuthContext';
+import { CloudflareDomainsSection } from '../components/domains/CloudflareDomainsSection';
 
 const DAY = 24 * 3600_000;
 
@@ -73,6 +75,7 @@ const SummaryTile: React.FC<{ label: string; value: number | string; hint?: stri
 
 export const PublicUrlsPage: React.FC = () => {
   const toast = useToast();
+  const { isManager } = useAuth();
   const [data, setData] = useState<PublicUrls | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProbing, setIsProbing] = useState(false);
@@ -363,6 +366,8 @@ export const PublicUrlsPage: React.FC = () => {
           }
         />
       )}
+
+      {isManager && <CloudflareDomainsSection />}
     </div>
   );
 };

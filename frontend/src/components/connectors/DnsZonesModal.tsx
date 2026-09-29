@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, ListTree } from 'lucide-react';
+import { Activity, ExternalLink, ListTree } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { ListToolbar } from '../common/ListToolbar';
 import { DataTable, DataColumn } from '../common/DataTable';
@@ -7,6 +7,7 @@ import { Pagination } from '../common/Pagination';
 import { ConnectorLogoTile } from './ConnectorLogos';
 import { IconAction } from './ConnectorRowActions';
 import { DnsRecordsModal } from './DnsRecordsModal';
+import { DnsZoneOverviewModal } from './DnsZoneOverviewModal';
 import { useListQuery, SortOption } from '../../hooks/useListQuery';
 import { dnsApi, DnsConnector, DnsZone } from '../../api/dnsApi';
 import { getApiErrorMessage } from '../../api/client';
@@ -31,6 +32,7 @@ const statusChip = (z: DnsZone) => {
 export const DnsZonesModal: React.FC<{ connector: DnsConnector; canManage: boolean; onClose: () => void }> = ({ connector, canManage, onClose }) => {
   const [zones, setZones] = useState<DnsZone[]>([]);
   const [recordsZone, setRecordsZone] = useState<DnsZone | null>(null);
+  const [overviewZone, setOverviewZone] = useState<DnsZone | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,9 +67,9 @@ export const DnsZonesModal: React.FC<{ connector: DnsConnector; canManage: boole
         <div className="min-w-0">
           <button
             type="button"
-            onClick={() => setRecordsZone(z)}
+            onClick={() => setOverviewZone(z)}
             className="font-semibold text-slate-900 font-mono hover:text-sky-700 hover:underline cursor-pointer text-left"
-            title={`Show DNS records of ${z.name}`}
+            title={`Overview of ${z.name}`}
           >
             {z.name}
           </button>
@@ -113,6 +115,7 @@ export const DnsZonesModal: React.FC<{ connector: DnsConnector; canManage: boole
       className: 'text-right',
       render: (z) => (
         <div className="flex items-center justify-end gap-1.5">
+        <IconAction label={`Overview of ${z.name}`} onClick={() => setOverviewZone(z)} icon={<Activity size={14} />} />
         <IconAction label={`DNS records of ${z.name}`} onClick={() => setRecordsZone(z)} icon={<ListTree size={14} />} />
         <a
           href={`https://dash.cloudflare.com/${z.accountId}/${encodeURIComponent(z.name)}/dns/records`}
@@ -128,6 +131,18 @@ export const DnsZonesModal: React.FC<{ connector: DnsConnector; canManage: boole
       ),
     },
   ];
+
+  if (overviewZone && !recordsZone) {
+    return (
+      <DnsZoneOverviewModal
+        connector={connector}
+        zone={overviewZone}
+        onBack={() => setOverviewZone(null)}
+        onRecords={() => setRecordsZone(overviewZone)}
+        onClose={onClose}
+      />
+    );
+  }
 
   if (recordsZone) {
     return <DnsRecordsModal connector={connector} zone={recordsZone} canManage={canManage} onBack={() => setRecordsZone(null)} onClose={onClose} />;
