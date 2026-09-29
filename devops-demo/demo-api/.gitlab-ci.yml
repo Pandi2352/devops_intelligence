@@ -1,0 +1,176 @@
+# kubeorbit-demo-api CI: branch-per-environment, following docs/COMPANY_DEVOPS_WORKFLOW.md
+#
+#   branch dev     → environment dev      (namespace kubeorbit-demo-dev)
+#   branch qa      → environment qa       (namespace kubeorbit-demo-qa)
+#   branch staging → environment staging  (namespace kubeorbit-demo-staging)
+#   branch prod    → environment prod     (namespace kubeorbit-demo-prod, ArgoCD manual sync)
+#
+# Promotion = a fast-forward merge request dev → qa → staging → prod, so every environment runs
+# the exact commit the previous one tested. Each environment branch builds its OWN image, in its own
+# registry path, with the environment baked in (BUILD_ENV):
+#   registry.gitlab.com/<group>/kubeorbit-demo-api/<env>:<env>-<yyyymmddhhmm>-<sha8>-<pipeline>
+#
+#   code_scan → build → package → kubeconfig → publish_argocd
+#
+# CI/CD variables (Settings → CI/CD → Variables):
+#   GITOPS_REPO        git@gitlab.com:<group>/kubeorbit-demo-api-gitops.git
+#   GITOPS_DEPLOY_KEY  File, Protected: private SSH key of a write-enabled deploy key on the GitOps repo
+#                      (environment branches are protected, so they receive it; feature branches do not)
+
+stages:
+  - code_scan
+  - build
+  - package
+  - kubeconfig
+  - publish_argocd
+
+variables:
+  NODE_IMAGE: node:20-alpine
+  GITOPS_BRANCH: main
+  YQ_VERSION: v4.44.3
+  KUSTOMIZE_VERSION: v5.4.3
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# Jobs that only run on environment branches. DEPLOY_ENV = the branch name.
+# KubeOrbit keeps the DEPLOY_BRANCHES CI/CD variable (e.g. /^(dev|qa|uat|staging|prod)$/)
+# in sync with the project's environments; the fixed list is the fallback when it is unset.
+.environment_branch:
+  rules:
+    - if: $DEPLOY_BRANCHES && $CI_COMMIT_BRANCH =~ $DEPLOY_BRANCHES
+      variables:
+        DEPLOY_ENV: $CI_COMMIT_BRANCH
+    - if: $DEPLOY_BRANCHES == null && $CI_COMMIT_BRANCH =~ /^(dev|qa|staging|prod)$/
+      variables:
+        DEPLOY_ENV: $CI_COMMIT_BRANCH
+
+# ---------------------------------------------------------------- 1. code_scan
+code_scan:npm-audit:
+  stage: code_scan
+  image: $NODE_IMAGE
+  script:
+    - npm ci --ignore-scripts
+    # Fails on high/critical vulnerabilities in production dependencies.
+    - npm audit --omit=dev --audit-level=high | tee npm-audit.txt
+  artifacts:
+    when: always
+    paths: [npm-audit.txt]
+    expire_in: 1 week
+
+# ---------------------------------------------------------------- 2. build
+# Tests, then the image name: <registry>/<env>:<env>-<yyyymmddhhmm>-<sha8>-<pipeline>.
+build:
+  stage: build
+  image: $NODE_IMAGE
+  script:
+    - npm ci
+    - npm run test:ci
+    - export APP_VERSION=$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -1)
+    - export IMAGE_REPO="${CI_REGISTRY_IMAGE}/${CI_COMMIT_REF_SLUG}"
+    - export IMAGE_TAG="${CI_COMMIT_REF_SLUG}-$(date +%Y%m%d%H%M)-${CI_COMMIT_SHORT_SHA}-${CI_PIPELINE_ID}"
+    - echo "${IMAGE_REPO}:${IMAGE_TAG}" > dockerimagename.txt
+    - printf 'APP_VERSION=%s\nIMAGE_REPO=%s\nIMAGE_TAG=%s\n' "$APP_VERSION" "$IMAGE_REPO" "$IMAGE_TAG" > build.env
+    - cat dockerimagename.txt
+  artifacts:
+    when: always
+    paths: [dockerimagename.txt]
+    reports:
+      junit: junit.xml
+      dotenv: build.env
+    expire_in: 1 week
+
+# ---------------------------------------------------------------- 3. package
+# Every environment builds its own image, with BUILD_ENV baked in (GET / reports it).
+package:docker:
+  stage: package
+  image: docker:27
+  services: [docker:27-dind]
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  needs: [build]
+  extends: .environment_branch
+  script:
+    - export DOCKER_IMAGE_NAME=$(cat dockerimagename.txt)
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - >
+      docker build
+      --build-arg APP_VERSION="$APP_VERSION"
+      --build-arg GIT_SHA="$CI_COMMIT_SHORT_SHA"
+      --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      --build-arg BUILD_ENV="$DEPLOY_ENV"
+      -t "$DOCKER_IMAGE_NAME" .
+    - docker push "$DOCKER_IMAGE_NAME"
+    - echo "Image digest:" && docker inspect --format "{{index .RepoDigests 0}}" "$DOCKER_IMAGE_NAME"
+
+package:trivy:
+  stage: package
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  needs: [build, package:docker]
+  extends: .environment_branch
+  variables:
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+  script:
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL --format table --output trivy-report.txt "$(cat dockerimagename.txt)"
+    - cat trivy-report.txt
+    # Security gate: fixable CRITICAL vulnerabilities fail this job.
+    - trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed "$(cat dockerimagename.txt)"
+  artifacts:
+    when: always
+    paths: [trivy-report.txt]
+    expire_in: 1 week
+  allow_failure: true
+
+# ---------------------------------------------------------------- GitOps helpers
+.gitops:
+  image: alpine:3.20
+  extends: .environment_branch
+  before_script:
+    - apk add --no-cache git openssh-client
+    - wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" && chmod +x /usr/local/bin/yq
+    - wget -qO- "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kustomize
+    - test -n "$GITOPS_REPO" || (echo "Set the GITOPS_REPO CI/CD variable" && exit 1)
+    - test -f "$GITOPS_DEPLOY_KEY" || (echo "GITOPS_DEPLOY_KEY is missing. Is this branch protected?" && exit 1)
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - cp "$GITOPS_DEPLOY_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+    - ssh-keyscan -t ed25519 "$(echo "$GITOPS_REPO" | sed -E 's/^git@([^:]+):.*/\1/')" >> ~/.ssh/known_hosts 2>/dev/null
+    - git clone --depth 1 --branch "$GITOPS_BRANCH" "$GITOPS_REPO" gitops
+    - git -C gitops config user.name "kubeorbit-demo-api CI"
+    - git -C gitops config user.email "ci@kubeorbit-demo-api.local"
+    - export OVERLAY="k8s/overlays/${DEPLOY_ENV}"
+    - test -f "gitops/${OVERLAY}/kustomization.yaml" || (echo "No overlay ${OVERLAY} in the GitOps repo" && exit 1)
+
+# ---------------------------------------------------------------- 4. kubeconfig
+# Sets the new image in this environment's overlay with yq and renders the YAML ArgoCD will apply.
+kubeconfig:
+  extends: .gitops
+  stage: kubeconfig
+  needs: [build, package:docker]
+  script:
+    - yq -i '.images[0].newName = strenv(IMAGE_REPO) | .images[0].newTag = strenv(IMAGE_TAG)' "gitops/${OVERLAY}/kustomization.yaml"
+    - kustomize build "gitops/${OVERLAY}" > kube-config.yaml
+    - git -C gitops diff
+    - cp "gitops/${OVERLAY}/kustomization.yaml" overlay-kustomization.yaml
+  artifacts:
+    paths: [kube-config.yaml, overlay-kustomization.yaml]
+    expire_in: 1 week
+
+# ---------------------------------------------------------------- 5. publish_argocd
+publish_argocd:
+  extends: .gitops
+  stage: publish_argocd
+  needs: [build, kubeconfig]
+  # One publish at a time: every environment commits to the same GitOps repo.
+  resource_group: gitops-publish
+  script:
+    - cp overlay-kustomization.yaml "gitops/${OVERLAY}/kustomization.yaml"
+    - cd gitops
+    - git add "${OVERLAY}/kustomization.yaml"
+    - git diff --cached --quiet && echo "Nothing to publish" && exit 0
+    - 'git commit -m "deploy(${DEPLOY_ENV}): demo-api ${IMAGE_TAG}"'
+    - for i in 1 2 3; do git push origin "HEAD:${GITOPS_BRANCH}" && exit 0; git pull --rebase origin "$GITOPS_BRANCH"; done; exit 1

@@ -1,0 +1,24 @@
+# kubectl apply -f argocd/kubeorbit-demo-api-qa.yaml
+# QA syncs automatically: every commit CI makes to k8s/overlays/qa is deployed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubeorbit-demo-api-qa
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: kubeorbit-demo
+spec:
+  project: default
+  source:
+    repoURL: https://gitlab.com/mvp.bose23/kubeorbit-demo-api-gitops.git
+    targetRevision: main
+    path: k8s/overlays/qa
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubeorbit-demo-qa
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

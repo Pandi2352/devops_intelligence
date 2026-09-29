@@ -1,0 +1,18 @@
+# Loki + Promtail for KubeOrbit's log history (Logs → History (Loki)).
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm install loki grafana/loki-stack --version 2.10.3 -n monitoring -f devops-demo/platform/loki-values.yaml
+loki:
+  isDefault: false
+  persistence:
+    enabled: true        # keep log history when the Loki pod restarts
+    size: 5Gi
+grafana:
+  enabled: false         # kube-prometheus-stack already runs Grafana
+promtail:
+  enabled: true
+  config:
+    snippets:
+      # minikube (docker driver) writes Docker JSON log files. With containerd/CRI-O use `- cri: {}`.
+      # The wrong stage stores every line wrapped in {"log": ...} with the ingestion time as timestamp.
+      pipelineStages:
+        - docker: {}

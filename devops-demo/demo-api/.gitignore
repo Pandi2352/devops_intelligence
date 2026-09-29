@@ -1,0 +1,5 @@
+node_modules/
+junit.xml
+dockerimagename.txt
+.env
+*.log

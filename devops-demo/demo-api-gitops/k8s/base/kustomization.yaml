@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: kubeorbit-demo
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - servicemonitor.yaml
+
+# The generated name gets a content hash (demo-api-config-abc123). Changing a value
+# changes the name, which changes the Deployment, which triggers a rolling restart.
+configMapGenerator:
+  - name: demo-api-config
+    literals:
+      - APP_ENV=base
+      - APP_MESSAGE=Hello from demo-api
+      - CHAOS_ENABLED=false

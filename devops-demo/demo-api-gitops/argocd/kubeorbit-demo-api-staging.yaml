@@ -1,0 +1,24 @@
+# kubectl apply -f argocd/kubeorbit-demo-api-staging.yaml
+# Staging syncs automatically: every commit CI makes to k8s/overlays/staging is deployed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubeorbit-demo-api-staging
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: kubeorbit-demo
+spec:
+  project: default
+  source:
+    repoURL: https://gitlab.com/mvp.bose23/kubeorbit-demo-api-gitops.git
+    targetRevision: main
+    path: k8s/overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubeorbit-demo-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

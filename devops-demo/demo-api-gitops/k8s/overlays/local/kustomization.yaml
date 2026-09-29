@@ -1,0 +1,24 @@
+# Local lab: image built straight into Minikube, no registry, CI or ArgoCD.
+#   minikube image build -t demo-api:local ../demo-api
+#   kubectl apply -k k8s/overlays/local
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kubeorbit-demo-local
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+configMapGenerator:
+  - name: demo-api-config
+    behavior: merge
+    literals:
+      - APP_ENV=local
+      - APP_MESSAGE=Hello from your laptop cluster
+      - CHAOS_ENABLED=true
+
+images:
+  - name: demo-api
+    newName: demo-api
+    newTag: local

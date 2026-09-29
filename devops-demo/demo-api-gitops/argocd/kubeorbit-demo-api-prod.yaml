@@ -1,0 +1,22 @@
+# kubectl apply -f argocd/kubeorbit-demo-api-prod.yaml
+# No `automated` block: after a prod publish ArgoCD shows OutOfSync and a person clicks Sync
+# (ArgoCD UI or KubeOrbit's ArgoCD GitOps page). That click is the production approval.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubeorbit-demo-api-prod
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: kubeorbit-demo
+spec:
+  project: default
+  source:
+    repoURL: https://gitlab.com/mvp.bose23/kubeorbit-demo-api-gitops.git
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubeorbit-demo-prod
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

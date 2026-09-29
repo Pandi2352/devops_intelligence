@@ -1,0 +1,25 @@
+# Staging: production-like (2 replicas, chaos off), deployed from the `staging` branch (ArgoCD auto-sync).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kubeorbit-demo-staging
+
+resources:
+  - ../../base
+
+replicas:
+  - name: demo-api
+    count: 2
+
+configMapGenerator:
+  - name: demo-api-config
+    behavior: merge
+    literals:
+      - APP_ENV=staging
+      - APP_MESSAGE=Hello from STAGING
+      - CHAOS_ENABLED=false
+
+images:
+  - name: demo-api
+    newName: registry.gitlab.com/mvp.bose23/kubeorbit-demo-api
+    newTag: not-built-yet

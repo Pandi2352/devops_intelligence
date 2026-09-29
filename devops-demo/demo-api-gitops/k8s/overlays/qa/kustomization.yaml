@@ -1,0 +1,22 @@
+# QA: deployed from the `qa` branch of kubeorbit-demo-api (ArgoCD auto-sync).
+# CI rewrites images[0] with yq when a commit lands on `qa`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kubeorbit-demo-qa
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: demo-api-config
+    behavior: merge
+    literals:
+      - APP_ENV=qa
+      - APP_MESSAGE=Hello from QA
+      - CHAOS_ENABLED=true
+
+images:
+  - name: demo-api
+    newName: registry.gitlab.com/mvp.bose23/kubeorbit-demo-api
+    newTag: not-built-yet

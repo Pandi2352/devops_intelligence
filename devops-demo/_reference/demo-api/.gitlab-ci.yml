@@ -1,0 +1,187 @@
+# demo-api CI pipeline — same stage flow as docs/COMPANY_DEVOPS_WORKFLOW.md
+#
+#   code_scan → sonar → build → package → kubeconfig → publish_argocd
+#
+# CI never runs kubectl. It builds + scans the image, then commits the new image tag
+# to the GitOps repo (demo-api-devops). ArgoCD sees that commit and deploys it.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   GITOPS_REPO   gitlab.com/<group>/demo-api-devops.git      (no https://)
+#   GITOPS_TOKEN  project access token on demo-api-devops     (role Maintainer, scope write_repository; Masked)
+# Optional:
+#   SNYK_TOKEN                     enables the Snyk scan
+#   SONAR_HOST_URL + SONAR_TOKEN   enables the SonarQube scan
+
+stages:
+  - code_scan
+  - sonar
+  - build
+  - package
+  - kubeconfig
+  - publish_argocd
+
+variables:
+  NODE_IMAGE: node:20-alpine
+  GITOPS_BRANCH: main
+  YQ_VERSION: v4.44.3
+  KUSTOMIZE_VERSION: v5.4.3
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ---------------------------------------------------------------- 1. code_scan
+code_scan:npm-audit:
+  stage: code_scan
+  image: $NODE_IMAGE
+  script:
+    - npm ci --ignore-scripts
+    # Fails the pipeline on high/critical vulnerabilities in production dependencies.
+    - npm audit --omit=dev --audit-level=high | tee npm-audit.txt
+  artifacts:
+    when: always
+    paths: [npm-audit.txt]
+    expire_in: 1 week
+
+code_scan:snyk:
+  stage: code_scan
+  image: snyk/snyk:node-20
+  rules:
+    - if: $SNYK_TOKEN
+  script:
+    - snyk test --severity-threshold=high --json-file-output=snyk-report.json
+  artifacts:
+    when: always
+    paths: [snyk-report.json]
+    expire_in: 1 week
+  allow_failure: true
+
+# ---------------------------------------------------------------- 2. sonar
+sonar:
+  stage: sonar
+  image:
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  rules:
+    - if: $SONAR_HOST_URL && $SONAR_TOKEN
+  script:
+    - sonar-scanner -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.token="$SONAR_TOKEN"
+  allow_failure: true
+
+# ---------------------------------------------------------------- 3. build
+# Runs the tests and decides the immutable image tag: <branch>-<date>-<sha>-<pipeline>.
+build:
+  stage: build
+  image: $NODE_IMAGE
+  script:
+    - npm ci
+    - npm run test:ci
+    - export APP_VERSION=$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -1)
+    - export IMAGE_TAG="${CI_COMMIT_REF_SLUG}-$(date +%Y%m%d%H%M)-${CI_COMMIT_SHORT_SHA}-${CI_PIPELINE_ID}"
+    - echo "${CI_REGISTRY_IMAGE}:${IMAGE_TAG}" > dockerimagename.txt
+    - printf 'APP_VERSION=%s\nIMAGE_TAG=%s\n' "$APP_VERSION" "$IMAGE_TAG" > build.env
+    - cat dockerimagename.txt
+  artifacts:
+    paths: [dockerimagename.txt]
+    reports:
+      junit: junit.xml
+      dotenv: build.env
+    expire_in: 1 week
+
+# ---------------------------------------------------------------- 4. package
+package:docker:
+  stage: package
+  image: docker:27
+  services: [docker:27-dind]
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  needs: [build]
+  script:
+    - export DOCKER_IMAGE_NAME=$(cat dockerimagename.txt)
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - >
+      docker build
+      --build-arg APP_VERSION="$APP_VERSION"
+      --build-arg GIT_SHA="$CI_COMMIT_SHORT_SHA"
+      --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      -t "$DOCKER_IMAGE_NAME" .
+    - docker push "$DOCKER_IMAGE_NAME"
+
+package:trivy:
+  stage: package
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  needs: [build, package:docker]
+  variables:
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+  script:
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL --format table --output trivy-report.txt "$(cat dockerimagename.txt)"
+    - cat trivy-report.txt
+    # Security gate: fail on fixable CRITICAL vulnerabilities in the final image.
+    - trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed "$(cat dockerimagename.txt)"
+  artifacts:
+    when: always
+    paths: [trivy-report.txt]
+    expire_in: 1 week
+  # Start permissive while learning; set to false to make the gate blocking.
+  allow_failure: true
+
+# ---------------------------------------------------------------- GitOps helpers
+.gitops:
+  image: alpine:3.20
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - apk add --no-cache git
+    - wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" && chmod +x /usr/local/bin/yq
+    - wget -qO- "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kustomize
+    - test -n "$GITOPS_REPO" || (echo "Set the GITOPS_REPO CI/CD variable" && exit 1)
+    - test -n "$GITOPS_TOKEN" || (echo "Set the GITOPS_TOKEN CI/CD variable" && exit 1)
+    - git clone --depth 1 --branch "$GITOPS_BRANCH" "https://oauth2:${GITOPS_TOKEN}@${GITOPS_REPO}" gitops
+    - git -C gitops config user.name "demo-api CI"
+    - git -C gitops config user.email "ci@demo-api.local"
+    - export IMAGE_REPO="$CI_REGISTRY_IMAGE"
+
+# ---------------------------------------------------------------- 5. kubeconfig
+# Sets the new image in the dev overlay with yq and renders the final YAML ArgoCD will apply.
+kubeconfig:
+  extends: .gitops
+  stage: kubeconfig
+  script:
+    - yq -i '.images[0].newName = strenv(IMAGE_REPO) | .images[0].newTag = strenv(IMAGE_TAG)' gitops/k8s/overlays/dev/kustomization.yaml
+    - kustomize build gitops/k8s/overlays/dev > kube-config.yaml
+    - git -C gitops diff
+    - cp gitops/k8s/overlays/dev/kustomization.yaml dev-kustomization.yaml
+  artifacts:
+    paths: [kube-config.yaml, dev-kustomization.yaml]
+    expire_in: 1 week
+
+# ---------------------------------------------------------------- 6. publish_argocd
+publish_argocd:dev:
+  extends: .gitops
+  stage: publish_argocd
+  needs: [build, package:docker, kubeconfig]
+  script:
+    - cp dev-kustomization.yaml gitops/k8s/overlays/dev/kustomization.yaml
+    - cd gitops
+    - git add k8s/overlays/dev/kustomization.yaml
+    - git diff --cached --quiet && echo "Nothing to publish" && exit 0
+    - git commit -m "deploy(dev): demo-api ${IMAGE_TAG} [skip ci]"
+    - for i in 1 2 3; do git push origin "HEAD:${GITOPS_BRANCH}" && exit 0; git pull --rebase origin "$GITOPS_BRANCH"; done; exit 1
+
+# Promotion to production is a deliberate, manual click: the pipeline's approval gate.
+publish_argocd:prod:
+  extends: .gitops
+  stage: publish_argocd
+  needs: [build, package:docker, publish_argocd:dev]
+  when: manual
+  script:
+    - yq -i '.images[0].newName = strenv(IMAGE_REPO) | .images[0].newTag = strenv(IMAGE_TAG)' gitops/k8s/overlays/prod/kustomization.yaml
+    - cd gitops
+    - git add k8s/overlays/prod/kustomization.yaml
+    - git diff --cached --quiet && echo "Nothing to publish" && exit 0
+    - git commit -m "deploy(prod): demo-api ${IMAGE_TAG} [skip ci]"
+    - for i in 1 2 3; do git push origin "HEAD:${GITOPS_BRANCH}" && exit 0; git pull --rebase origin "$GITOPS_BRANCH"; done; exit 1

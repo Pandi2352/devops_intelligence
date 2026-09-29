@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+test
+junit.xml
+.git
+.gitlab-ci.yml
+Dockerfile
+.dockerignore
+README.md
+*.md
+.env
