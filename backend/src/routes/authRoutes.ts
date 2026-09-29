@@ -4,6 +4,7 @@ import {
   login,
   getMe,
   changeOwnPassword,
+  getTestLogin,
   getAllUsers,
   addUserWithPermissions,
   updateUserPermissions,
@@ -15,6 +16,7 @@ const router = Router();
 
 router.post('/register', register);
 router.post('/login', login);
+router.get('/test-login', getTestLogin);
 router.get('/me', authenticate, getMe);
 router.post('/me/password', authenticate, changeOwnPassword);
 router.get('/users', authenticate, requireRole(['superadmin', 'devops']), getAllUsers);

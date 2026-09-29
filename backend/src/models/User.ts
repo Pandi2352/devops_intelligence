@@ -33,6 +33,7 @@ export interface IUser extends Document {
   lastLogin?: Date;
   tokenVersion: number; // bumped on password/role/active changes: older tokens stop working
   mustChangePassword: boolean;
+  isTestAccount: boolean; // seeded by scripts/seedTestUsers; sign-in only when ENABLE_TEST_ACCOUNTS=true
   passwordChangedAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
@@ -76,6 +77,7 @@ const UserSchema = new Schema<IUser>(
     lastLogin: { type: Date },
     tokenVersion: { type: Number, default: 0 },
     mustChangePassword: { type: Boolean, default: false },
+    isTestAccount: { type: Boolean, default: false },
     passwordChangedAt: { type: Date },
   },
   { timestamps: true }

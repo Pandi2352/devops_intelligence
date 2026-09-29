@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Boxes, Eye, EyeOff, Info, LogIn } from 'lucide-react';
+import { AlertTriangle, Boxes, Eye, EyeOff, FlaskConical, Info, LogIn } from 'lucide-react';
+import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/common/Button';
 
@@ -15,15 +16,23 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Only returned by the API when ENABLE_TEST_ACCOUNTS=true (development).
+  const [testLogin, setTestLogin] = useState<{ email: string; password: string; name: string; others: number } | null>(null);
+
+  useEffect(() => {
+    api
+      .get('/auth/test-login')
+      .then((r) => setTestLogin(r.data))
+      .catch(() => setTestLogin(null));
+  }, []);
 
   if (token && user) return <Navigate to={user.mustChangePassword ? '/account/password' : from} replace />;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const signIn = async (mail: string, pass: string) => {
     setError(null);
     setIsLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(mail.trim(), pass);
       navigate(from, { replace: true });
     } catch (err) {
       setError((err as Error).message);
@@ -31,6 +40,11 @@ export const LoginPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    signIn(email, password);
   };
 
   return (
@@ -54,6 +68,37 @@ export const LoginPage: React.FC = () => {
         {error && (
           <div className="mb-4 p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2" role="alert">
             <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
+          </div>
+        )}
+
+        {testLogin && (
+          <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 space-y-2">
+            <div className="flex items-center gap-1.5 font-semibold">
+              <FlaskConical size={13} /> Test mode
+            </div>
+            <div className="font-mono text-[11px]">
+              {testLogin.email}
+              <br />
+              {testLogin.password}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => signIn(testLogin.email, testLogin.password)} disabled={isLoading}>
+                Sign in as test admin
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setEmail(testLogin.email);
+                  setPassword(testLogin.password);
+                }}
+              >
+                Fill in
+              </Button>
+            </div>
+            <p className="text-[10px] text-amber-800">
+              {testLogin.others} more test users with other roles are listed in Authorization → User Permissions. Turn off with ENABLE_TEST_ACCOUNTS=false.
+            </p>
           </div>
         )}
 

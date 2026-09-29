@@ -5,6 +5,7 @@ import { IProject, Project } from '../models/Project.js';
 import { jwtSecret } from '../utils/authSecrets.js';
 import { LEVEL_NAME, Level, envLevel, isManager, namespaceLevel, projectLevel } from '../services/access.js';
 import { isValidId } from '../utils/validation.js';
+import { testAccountsEnabled } from '../config/testAccounts.js';
 
 export interface AuthRequest extends Request {
   user?: IUser;
@@ -34,6 +35,7 @@ export const userFromToken = async (token: string | undefined): Promise<IUser | 
   const user = await User.findById(payload.id).select('-password');
   if (!user || !user.isActive) return null;
   if ((user.tokenVersion || 0) !== (payload.tv || 0)) return null; // password, role or status changed since sign-in
+  if (user.isTestAccount && !testAccountsEnabled()) return null;
   return user;
 };
 

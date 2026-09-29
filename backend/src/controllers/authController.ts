@@ -5,6 +5,7 @@ import { AuthRequest, signToken } from '../middleware/auth.js';
 import { KNOWN_DEFAULT_PASSWORDS, loginThrottle, passwordProblem } from '../utils/authSecrets.js';
 import { accessSummary, isSuperAdmin } from '../services/access.js';
 import { cleanString, isValidId } from '../utils/validation.js';
+import { TEST_ACCOUNTS, testAccountsEnabled } from '../config/testAccounts.js';
 
 const ROLES: UserRole[] = ['superadmin', 'devops', 'developer', 'viewer'];
 const PERMISSIONS = ['View only', 'Build and Deploy', 'Admin', 'Manager Approver'];
@@ -106,6 +107,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(403).json({ message: 'This account is disabled. Contact a DevOps admin.' });
       return;
     }
+    if (user.isTestAccount && !testAccountsEnabled()) {
+      res.status(403).json({ message: 'Test accounts are disabled on this server.' });
+      return;
+    }
     loginThrottle.success(key);
     user.lastLogin = new Date();
     if (KNOWN_DEFAULT_PASSWORDS.includes(password)) user.mustChangePassword = true;
@@ -114,6 +119,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (err: any) {
     res.status(500).json({ message: 'Login failed', error: err.message });
   }
+};
+
+// Login page helper while testing: the test admin's credentials, only when test accounts are enabled.
+export const getTestLogin = async (_req: Request, res: Response): Promise<void> => {
+  const account = TEST_ACCOUNTS.find((a) => a.showOnLogin);
+  if (!testAccountsEnabled() || !account || !(await User.exists({ email: account.email, isTestAccount: true, isActive: true }))) {
+    res.status(404).json({ message: 'Test accounts are disabled' });
+    return;
+  }
+  res.json({ email: account.email, password: account.password, name: account.name, role: account.role, others: TEST_ACCOUNTS.length - 1 });
 };
 
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {

@@ -8,7 +8,10 @@
     "dev": "nodemon",
     "dev:tsx": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "seed:test-users": "node dist/scripts/seedTestUsers.js",
+    "remove:test-users": "node dist/scripts/seedTestUsers.js --remove",
+    "test:permissions": "node dist/scripts/testPermissions.js"
   },
   "keywords": [
     "kubernetes",

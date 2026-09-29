@@ -12,7 +12,8 @@ export const listApprovals = async (req: AuthRequest, res: Response): Promise<vo
 
     const all = await ApprovalRequest.find(filter).sort({ createdAt: -1 });
     // Managers see everything; others see what they asked for and what they may approve.
-    const approvals = isManager(req.user) ? all : all.filter((a) => a.requestedBy === req.user?.email || canApprove(req.user, a.projectName));
+    const mine = (a: { requestedBy: string }) => a.requestedBy === req.user?.email || a.requestedBy === req.user?.name; // older requests stored the name
+    const approvals = isManager(req.user) ? all : all.filter((a) => mine(a) || canApprove(req.user, a.projectName));
     res.json({ approvals });
   } catch (err: any) {
     res.status(500).json({ message: 'Failed to fetch approval requests', error: err.message });
@@ -37,8 +38,10 @@ export const createApprovalRequest = async (req: AuthRequest, res: Response): Pr
       resource,
       reason: reason || 'Operation requested via DevOps Copilot',
       details: details || '',
-      requestedBy: req.user?.name || req.body.requestedBy || 'Developer User',
-      requestedByRole: req.user?.role || req.body.requestedByRole || 'developer',
+      // Always the signed-in user, never from the request body.
+      requestedBy: req.user!.email,
+      requestedByName: req.user!.name,
+      requestedByRole: req.user!.role,
       status: 'PENDING',
     });
 
@@ -71,14 +74,14 @@ export const reviewApprovalRequest = async (req: AuthRequest, res: Response): Pr
       res.status(403).json({ message: `Only a Manager Approver or admin of ${request.projectName} can review this request` });
       return;
     }
-    if (request.requestedBy === req.user?.email) {
+    if (request.requestedBy === req.user?.email || request.requestedBy === req.user?.name) {
       res.status(403).json({ message: 'You cannot approve your own request' });
       return;
     }
 
     request.status = status as ApprovalStatus;
     request.reviewComment = reviewComment || (status === 'APPROVED' ? 'Approved by DevOps Manager' : 'Rejected');
-    request.reviewedBy = req.user?.name || 'DevOps Manager';
+    request.reviewedBy = req.user!.email;
     request.reviewedAt = new Date();
 
     await request.save();

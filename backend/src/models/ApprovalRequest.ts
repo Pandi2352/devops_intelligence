@@ -9,7 +9,8 @@ export interface IApprovalRequest extends Document {
   resource: string;
   details?: string;
   reason: string;
-  requestedBy: string;
+  requestedBy: string; // email of the signed-in requester
+  requestedByName?: string;
   requestedByRole: string;
   status: ApprovalStatus;
   reviewedBy?: string;
@@ -29,6 +30,7 @@ const ApprovalRequestSchema = new Schema<IApprovalRequest>(
     details: { type: String, default: '' },
     reason: { type: String, default: 'Manual request via DevOps Copilot' },
     requestedBy: { type: String, required: true },
+    requestedByName: { type: String, default: '' },
     requestedByRole: { type: String, default: 'developer' },
     status: {
       type: String,
