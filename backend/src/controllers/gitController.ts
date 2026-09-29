@@ -9,6 +9,7 @@ import { buildScope } from '../services/access.js';
 import { cleanString, isHttpUrl, isValidId, nameMatch, normalizeUrl } from '../utils/validation.js';
 import { listTemplates, readTemplateFiles } from '../services/workspaceTemplates.js';
 import { readZip } from '../utils/zip.js';
+import { describeGithubToken, githubTokenInfo, listGithubRepos, octokitFor } from '../services/githubClient.js';
 
 const PROVIDERS: GitProvider[] = ['github', 'gitlab'];
 const PROVIDER_LABEL: Record<GitProvider, string> = { github: 'GitHub', gitlab: 'GitLab' };
@@ -36,9 +37,7 @@ export const serializeGit = (g: IGitIntegration) => ({
 // Calls the provider's "current user" endpoint to prove the token works. Returns the account username.
 const verifyGitToken = async (provider: GitProvider, token: string, baseUrl: string): Promise<string> => {
   if (provider === 'github') {
-    const apiBase = baseUrl && baseUrl !== DEFAULT_BASE_URL.github ? `${baseUrl}/api/v3` : undefined;
-    const octokit = new Octokit({ auth: token, baseUrl: apiBase, request: { timeout: 8000 } });
-    const userRes = await octokit.rest.users.getAuthenticated();
+    const userRes = await octokitFor(token, baseUrl).rest.users.getAuthenticated();
     return userRes.data.login;
   }
   const glRes = await axios.get(`${baseUrl}/api/v4/user`, {
@@ -106,7 +105,7 @@ export const saveGitIntegration = async (req: AuthRequest, res: Response): Promi
       baseUrl,
       token,
       username,
-      organizations: Array.isArray(req.body.organizations) ? req.body.organizations : [],
+      organizations: provider === 'github' ? await githubTokenInfo(token, baseUrl).then((i) => i.orgs).catch(() => []) : Array.isArray(req.body.organizations) ? req.body.organizations : [],
       isActive: req.body.isActive !== false,
       isDefault: typeof req.body.isDefault === 'boolean' ? req.body.isDefault : isFirstForProvider,
       status: 'Connected',
@@ -226,6 +225,11 @@ export const testGitConnection = async (req: AuthRequest, res: Response): Promis
     }
 
     try {
+      if (provider === 'github') {
+        const info = await githubTokenInfo(token, baseUrl);
+        res.json({ ok: true, message: describeGithubToken(info), details: { account: info.login, host: baseUrl, scopes: info.scopes?.join(', ') || info.tokenType, orgs: info.orgs.join(', ') } });
+        return;
+      }
       const username = await verifyGitToken(provider, token, baseUrl);
       res.json({ ok: true, message: `Authenticated as @${username}`, details: { account: username, host: baseUrl } });
     } catch (err) {
@@ -246,12 +250,19 @@ export const testSavedGitIntegration = async (req: AuthRequest, res: Response): 
 
     let result: { ok: boolean; message: string; details?: Record<string, string> };
     try {
-      const username = await verifyGitToken(integration.provider, integration.token, integration.baseUrl || DEFAULT_BASE_URL[integration.provider]);
-      integration.username = username;
+      if (integration.provider === 'github') {
+        const info = await githubTokenInfo(integration.token, integration.baseUrl || DEFAULT_BASE_URL.github);
+        integration.username = info.login;
+        integration.organizations = info.orgs;
+        result = { ok: true, message: describeGithubToken(info), details: { account: info.login, scopes: info.scopes?.join(', ') || info.tokenType } };
+      } else {
+        const username = await verifyGitToken(integration.provider, integration.token, integration.baseUrl || DEFAULT_BASE_URL[integration.provider]);
+        integration.username = username;
+        result = { ok: true, message: `Authenticated as @${username}`, details: { account: username } };
+      }
       integration.status = 'Connected';
       integration.lastError = '';
       integration.lastConnectedAt = new Date();
-      result = { ok: true, message: `Authenticated as @${username}`, details: { account: username } };
     } catch (err) {
       const message = describeRequestError(err, PROVIDER_LABEL[integration.provider]);
       integration.status = 'Error';
@@ -289,26 +300,7 @@ export const fetchRepositories = async (req: AuthRequest, res: Response): Promis
     let repos: any[] = [];
 
     if (integration.provider === 'github') {
-      const octokit = new Octokit({ auth: integration.token });
-      const response = await octokit.rest.repos.listForAuthenticatedUser({
-        sort: 'updated',
-        per_page: 100,
-      });
-
-      repos = response.data.map((r) => ({
-        id: r.id,
-        name: r.name,
-        fullName: r.full_name,
-        private: r.private,
-        htmlUrl: r.html_url,
-        cloneUrl: r.clone_url,
-        sshUrl: r.ssh_url,
-        defaultBranch: r.default_branch,
-        description: r.description,
-        lastActivityAt: r.pushed_at,
-        starCount: r.stargazers_count,
-        forksCount: r.forks_count,
-      }));
+      repos = await listGithubRepos(integration.token, integration.baseUrl || DEFAULT_BASE_URL.github);
     } else if (integration.provider === 'gitlab') {
       const gitlabUrl = integration.baseUrl || DEFAULT_BASE_URL.gitlab;
       let glProjects: any[] = [];

@@ -13,7 +13,8 @@
     "remove:test-users": "node dist/scripts/seedTestUsers.js --remove",
     "test:permissions": "node dist/scripts/testPermissions.js",
     "test:approvals": "node dist/scripts/testApprovals.js",
-    "test:dns": "node dist/scripts/testDns.js"
+    "test:dns": "node dist/scripts/testDns.js",
+    "test:starter": "node dist/scripts/testStarter.js"
   },
   "keywords": [
     "kubernetes",

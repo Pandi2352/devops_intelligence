@@ -7,6 +7,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 
 import { connectDB } from './config/db.js';
+import { recoverInterruptedRuns } from './services/projectStarter.js';
 import { userFromToken } from './middleware/auth.js';
 import { jwtSecret } from './utils/authSecrets.js';
 import { seedAdminIfNone } from './controllers/authController.js';
@@ -21,6 +22,8 @@ import projectRoutes from './routes/projectRoutes.js';
 import observabilityRoutes from './routes/observabilityRoutes.js';
 import dnsRoutes from './routes/dnsRoutes.js';
 import securityRoutes from './routes/securityRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
+import starterRoutes from './routes/starterRoutes.js';
 
 dotenv.config();
 
@@ -95,6 +98,8 @@ app.use('/api/approvals', approvalRoutes);
 app.use('/api/observability', observabilityRoutes);
 app.use('/api/dns', dnsRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/starter', starterRoutes);
 
 // Root route
 app.get('/', (_req, res) => {
@@ -115,6 +120,7 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   jwtSecret(); // fail fast (production) or warn (development) about the signing secret
   await connectDB();
+  await recoverInterruptedRuns().catch((err) => console.error('[Project Starter] recovery failed', err));
   await seedAdminIfNone();
   await seedClustersIfNone();
 

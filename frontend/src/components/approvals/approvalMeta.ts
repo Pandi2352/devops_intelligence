@@ -26,6 +26,7 @@ export const ACTION_LABEL: Record<string, string> = {
   CONNECTOR: 'Connector',
   DNS_CHANGE: 'DNS change',
   PUBLIC_PREVIEW: 'Public preview',
+  STARTER: 'Project Starter',
 };
 
 export const OUTCOME_META: Record<AuditOutcome, { label: string; chip: string }> = {

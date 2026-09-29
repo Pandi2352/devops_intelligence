@@ -14,6 +14,9 @@ interface ListToolbarProps {
   statusOptions?: Option[];
   status?: string;
   onStatusChange?: (value: string) => void;
+  /** Overrides for the filter dropdown when it filters something other than status. */
+  statusAllLabel?: string;
+  statusAriaLabel?: string;
   sortOptions?: Option[];
   sort?: string;
   onSortChange?: (value: string) => void;
@@ -32,6 +35,8 @@ export const ListToolbar: React.FC<ListToolbarProps> = ({
   statusOptions,
   status = '',
   onStatusChange,
+  statusAllLabel = 'All statuses',
+  statusAriaLabel = 'Filter by status',
   sortOptions,
   sort,
   onSortChange,
@@ -66,10 +71,10 @@ export const ListToolbar: React.FC<ListToolbarProps> = ({
       <div className="flex items-center gap-2">
         {statusOptions && onStatusChange && (
           <Dropdown<string>
-            ariaLabel="Filter by status"
+            ariaLabel={statusAriaLabel}
             value={status}
             onChange={onStatusChange}
-            options={[{ value: '', label: 'All statuses' }, ...statusOptions]}
+            options={[{ value: '', label: statusAllLabel }, ...statusOptions]}
             menuMinWidth={170}
             buttonClassName="min-w-[140px]"
           />

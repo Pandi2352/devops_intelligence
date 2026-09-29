@@ -1,6 +1,7 @@
 import React from 'react';
-import { Cloud, Server, ShieldCheck, Workflow } from 'lucide-react';
+import { Cloud, Server, ShieldCheck, Sparkles, Workflow } from 'lucide-react';
 import gitlabLogoUrl from '../../assets/connectors/gitlab.svg';
+import githubLogoUrl from '../../assets/connectors/github.svg';
 
 interface LogoProps {
   size?: number;
@@ -20,14 +21,29 @@ export const GitLabLogo: React.FC<LogoProps> = ({ size = 18, className = '' }) =
   />
 );
 
-export type ConnectorKind = 'clusters' | 'gitlab' | 'argocd' | 'dns' | 'security';
+// Decorative: always rendered next to a visible "GitHub" label.
+export const GitHubLogo: React.FC<LogoProps> = ({ size = 18, className = '' }) => (
+  <img
+    src={githubLogoUrl}
+    width={size}
+    height={size}
+    alt=""
+    aria-hidden="true"
+    draggable={false}
+    className={`shrink-0 select-none ${className}`}
+  />
+);
+
+export type ConnectorKind = 'clusters' | 'gitlab' | 'github' | 'argocd' | 'dns' | 'security' | 'ai';
 
 const tileStyles: Record<ConnectorKind, string> = {
   clusters: 'bg-sky-50 border-sky-200 text-sky-600',
   gitlab: 'bg-orange-50 border-orange-200',
+  github: 'bg-slate-50 border-slate-300',
   argocd: 'bg-indigo-50 border-indigo-200 text-indigo-600',
   dns: 'bg-orange-50 border-orange-200 text-orange-500',
   security: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+  ai: 'bg-violet-50 border-violet-200 text-violet-600',
 };
 
 // Square logo tile used in tables, modals and summary cards.
@@ -38,10 +54,14 @@ export const ConnectorLogoTile: React.FC<{ kind: ConnectorKind; size?: 'sm' | 'm
     <div className={`${box} rounded-md border flex items-center justify-center shrink-0 ${tileStyles[kind]}`}>
       {kind === 'gitlab' ? (
         <GitLabLogo size={icon + 2} />
+      ) : kind === 'github' ? (
+        <GitHubLogo size={icon} />
       ) : kind === 'clusters' ? (
         <Server size={icon} aria-hidden />
       ) : kind === 'security' ? (
         <ShieldCheck size={icon} aria-hidden />
+      ) : kind === 'ai' ? (
+        <Sparkles size={icon} aria-hidden />
       ) : kind === 'dns' ? (
         <Cloud size={icon} aria-hidden fill="currentColor" />
       ) : (

@@ -22,6 +22,7 @@ import { UserGuidePage } from './pages/UserGuidePage';
 import { EnvironmentsPage } from './pages/EnvironmentsPage';
 import { LogsPage } from './pages/LogsPage';
 import { MetricsPage } from './pages/MetricsPage';
+import { StarterPage } from './pages/StarterPage';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -79,6 +80,7 @@ export function App() {
             <Route path="argocd" element={<ArgoPage />} />
             <Route path="git" element={<GitPage />} />
             <Route path="connectors" element={<ManagerRoute><ConnectorsPage /></ManagerRoute>} />
+            <Route path="starter" element={<ManagerRoute><StarterPage /></ManagerRoute>} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />
             <Route path="authorization/users" element={<ManagerRoute><UserPermissionsPage /></ManagerRoute>} />

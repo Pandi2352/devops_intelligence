@@ -111,6 +111,19 @@ export interface GitRepo {
   createdAt?: string;
   starCount?: number;
   forksCount?: number;
+  // GitHub-only fields (absent for GitLab repositories).
+  owner?: string;
+  ownerType?: 'User' | 'Organization';
+  visibility?: 'public' | 'private' | 'internal';
+  language?: string | null;
+  topics?: string[];
+  archived?: boolean;
+  fork?: boolean;
+  isTemplate?: boolean;
+  openIssues?: number;
+  sizeKb?: number;
+  permission?: 'admin' | 'maintain' | 'push' | 'triage' | 'pull' | '';
+  updatedAt?: string;
 }
 
 export interface GitCommit {

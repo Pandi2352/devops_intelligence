@@ -21,6 +21,7 @@ import {
   ScrollText,
   LifeBuoy,
   LineChart,
+  Sparkles,
 } from 'lucide-react';
 import { GitLabLogo } from '../connectors/ConnectorLogos';
 import { useAuth } from '../../context/AuthContext';
@@ -351,6 +352,26 @@ export const Sidebar: React.FC = () => {
                 </div>
                 <span className="text-[10px] text-slate-400 font-mono">Workspace</span>
               </NavLink>
+
+              {/* 2. Project Starter (AI) - DevOps admins only; the route and API enforce it too. */}
+              {isManager && (
+                <NavLink
+                  to="/starter"
+                  className={({ isActive }) =>
+                    `flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-sky-50 text-sky-700 font-semibold border-l-2 border-sky-600'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={14} className="text-violet-600" />
+                    <span>Project Starter</span>
+                  </div>
+                  <span className="px-1.5 text-[9px] font-mono font-bold rounded bg-violet-50 text-violet-700 border border-violet-200">AI</span>
+                </NavLink>
+              )}
 
               {/* Connectors and Authorization are for DevOps admins only (the routes and API enforce it too). */}
               {isManager && (
